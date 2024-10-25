@@ -1,0 +1,7 @@
+# config.yaml
+
+working_directory: "/tmp/vst_test"
+
+credentials:
+  user: "fredericdux"
+  program_id: "114.27U3.001"

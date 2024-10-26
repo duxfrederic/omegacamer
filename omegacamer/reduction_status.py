@@ -6,9 +6,10 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 import logging
 import sys
+from datetime import datetime
 
 
-from omegacamdownloader import get_omegacam_observation_records
+from omegacam_downloader import get_omegacam_observation_records
 
 
 # setup logger
@@ -39,12 +40,8 @@ def query_eso_archive(config: dict) -> pd.DataFrame:
     program_id = credentials['program_id']
     user = credentials['user']
     
-    # Define date range for the query
-    # For example, last 30 days
-    from datetime import datetime, timedelta
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=30)
-    start_date_str = start_date.strftime('%Y-%m-%d')
+    start_date_str = '2024-10-01'
     end_date_str = end_date.strftime('%Y-%m-%d')
     
     logger.info("Querying ESO archive...")
@@ -82,7 +79,9 @@ def check_reduction_status(obs_df: pd.DataFrame, reduced_dirs: dict, lenses: lis
     status = {}
     for lens in lenses:
         logger.info(f"Processing lens: {lens}")
-        lens_obs = obs_df[obs_df['OBJECT'] == lens]
+        archive_lens_name = lens.replace('_', ' ').upper()
+         
+        lens_obs = obs_df[obs_df['OBJECT'] == archive_lens_name]
         dp_ids = lens_obs['Dataset ID'].unique()
         reduced = []
         pending = []
@@ -128,7 +127,8 @@ def generate_html_report(status: dict, report_path: Path):
         </style>
     </head>
     <body>
-        <h1>Reduction Status Report</h1>
+        <h1>Reduction status report</h1>
+        <p>Last generation: UTC {{ now() }} </p>
         {% for lens, data in status.items() %}
             <h2>Lens: {{ lens }}</h2>
             <table>
@@ -140,11 +140,14 @@ def generate_html_report(status: dict, report_path: Path):
                     <td class="reduced">Reduced</td>
                     <td>
                         {% if data.reduced %}
-                            <ul>
-                                {% for dp_id in data.reduced %}
-                                    <li>{{ dp_id }}</li>
-                                {% endfor %}
-                            </ul>
+                            <details>
+                                <summary>Reduced ({{ data.reduced|length }})</summary>
+                                <ul>
+                                    {% for dp_id in data.reduced %}
+                                        <li>{{ dp_id }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
                         {% else %}
                             None
                         {% endif %}
@@ -154,11 +157,14 @@ def generate_html_report(status: dict, report_path: Path):
                     <td class="pending">Pending</td>
                     <td>
                         {% if data.pending %}
-                            <ul>
-                                {% for dp_id in data.pending %}
-                                    <li>{{ dp_id }}</li>
-                                {% endfor %}
-                            </ul>
+                            <details>
+                                <summary>Pending ({{data.pending|length}})</summary>
+                                <ul>
+                                    {% for dp_id in data.pending %}
+                                        <li>{{ dp_id }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
                         {% else %}
                             None
                         {% endif %}
@@ -169,6 +175,7 @@ def generate_html_report(status: dict, report_path: Path):
     </body>
     </html>
     """)
+    template.globals['now'] = datetime.utcnow
     
     html_content = template.render(status=status)
     

@@ -6,7 +6,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 from omegacam_downloader import get_omegacam_observation_records
@@ -40,7 +40,7 @@ def query_eso_archive(config: dict) -> pd.DataFrame:
     program_id = credentials['program_id']
     user = credentials['user']
     
-    end_date = datetime.now()
+    end_date = datetime.now() + timedelta(days=1)
     start_date_str = '2024-10-01'
     end_date_str = end_date.strftime('%Y-%m-%d')
     

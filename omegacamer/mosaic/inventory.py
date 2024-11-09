@@ -1,3 +1,4 @@
+import os
 import yaml
 import sqlite3
 from pathlib import Path
@@ -8,7 +9,7 @@ from database import Database
 from logger import setup_logger
 import sys
 
-def load_config(config_path='config.yaml'):
+def load_config(config_path):
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
@@ -33,7 +34,7 @@ def parse_filename(filename):
         raise ValueError(f"Filename {filename} does not match expected format.") from e
 
 def main():
-    config = load_config()
+    config = load_config(os.environ['OMEGACAMER_CONFIG'])
     log_level = getattr(logging, config.get('logging', {}).get('level', 'INFO').upper(), logging.INFO)
     log_file = config.get('logging', {}).get('file', 'omegacam_mosaic.log')
     logger = setup_logger(log_level, log_file)

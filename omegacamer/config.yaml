@@ -1,4 +1,3 @@
-# config.yaml
 
 working_directory: "/tmp/"
 
@@ -7,6 +6,7 @@ credentials:
   program_id: "114.27U3.001"
 
 
+####################### reduction report
 # path to save the HTML report
 report_path: "/www/people/dux/public/VST_p3/reduction_status.html"
 
@@ -19,4 +19,21 @@ lenses:
   - "eRASS1_J0501-0733"
   - "COOL_J0542-2125"
   - "J0722-3901"
+
+
+####################### mosaic
+
+mosaic_working_directory: /projects/astro/cosmograil/PRERED/VST/mosaic
+
+directories:
+  - /projects/astro/cosmograil/PRERED/VST/reduced/J0722-3901_wide_field
+  - /projects/astro/cosmograil/PRERED/VST/reduced/COOL_J0542-2125_wide_field
+  - /projects/astro/cosmograil/PRERED/VST/reduced/eRASS1_J0501-0733_wide_field
+
+database:
+  name: omegacam_data.db  # will be at mosaic_working_directory
+
+logging:
+  level: INFO
+  file: omegacam_mosaic.log
 

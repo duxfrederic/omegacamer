@@ -58,7 +58,7 @@ def main():
         logger.info(f"Processing directory: {dir_path}")
 
         # list all fits files in there
-        fits_files = list(dir_path.glob('OMEGA.*_OFCS.fits'))
+        fits_files = list(dir_path.glob('OMEGA.*FCS.fits'))
         logger.info(f"Found {len(fits_files)} FITS files in {dir_path}.")
 
         for fits_file in fits_files:

@@ -35,16 +35,16 @@ def parse_filename(filename):
 
 def main():
     config = load_config(os.environ['OMEGACAMER_CONFIG'])
+    work_dir = Path(config.get('mosaic_working_directory'))  # mandatory
     log_level = getattr(logging, config.get('logging', {}).get('level', 'INFO').upper(), logging.INFO)
-    log_file = config.get('logging', {}).get('file', 'omegacam_mosaic.log')
+    log_file = workdir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
     logger = setup_logger(log_level, log_file)
 
     logger.info("Starting inventory process.")
 
     # init database
     db_name = config.get('database').get('name')  # mandatory for consistency
-    work_dir = config.get('mosaic_working_directory')  # mandatory
-    db_path = Path(work_dir) / db_name
+    db_path = work_dir / db_name
     db = Database(db_path)
     logger.info(f"Connected to database at {db_path}.")
 

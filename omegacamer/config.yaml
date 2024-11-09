@@ -8,7 +8,7 @@ credentials:
 
 
 # path to save the HTML report
-report_path: "/www/people/dux/public/p3_vst_reduction_status.html"
+report_path: "/www/people/dux/public/VST_p3/reduction_status.html"
 
 
 # directory containing the reduced data

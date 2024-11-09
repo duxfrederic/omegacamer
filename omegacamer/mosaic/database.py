@@ -13,6 +13,7 @@ class Database:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS epochs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target TEXT,
                 timestamp TEXT UNIQUE,
                 mjd REAL
             )
@@ -24,17 +25,16 @@ class Database:
                 epoch_id INTEGER,
                 ccd_id INTEGER,
                 file_path TEXT UNIQUE,
-                target TEXT,
                 FOREIGN KEY (epoch_id) REFERENCES epochs(id)
             )
         """)
 
         self.conn.commit()
 
-    def insert_epoch(self, timestamp, mjd):
+    def insert_epoch(self, target, timestamp, mjd):
         cursor = self.conn.cursor()
         try:
-            cursor.execute("INSERT INTO epochs (timestamp, mjd) VALUES (?, ?)", (timestamp, mjd))
+            cursor.execute("INSERT INTO epochs (target, timestamp, mjd) VALUES (?, ?, ?)", (target, timestamp, mjd))
             self.conn.commit()
             return cursor.lastrowid
         except sqlite3.IntegrityError:
@@ -42,13 +42,13 @@ class Database:
             cursor.execute("SELECT id FROM epochs WHERE timestamp = ?", (timestamp,))
             return cursor.fetchone()[0]
 
-    def insert_exposure(self, target, epoch_id, ccd_id, file_path):
+    def insert_exposure(self, epoch_id, ccd_id, file_path):
         cursor = self.conn.cursor()
         try:
             cursor.execute("""
-                INSERT INTO exposures (target, epoch_id, ccd_id, file_path)
-                VALUES (?, ?, ?, ?)
-            """, (target, epoch_id, ccd_id, str(file_path)))
+                INSERT INTO exposures (epoch_id, ccd_id, file_path)
+                VALUES (?, ?, ?)
+            """, (epoch_id, ccd_id, str(file_path)))
             self.conn.commit()
         except sqlite3.IntegrityError:
             # Exposure already exists

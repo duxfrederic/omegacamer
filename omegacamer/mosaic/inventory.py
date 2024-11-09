@@ -41,7 +41,9 @@ def main():
     logger.info("Starting inventory process.")
 
     # init database
-    db_path = config.get('database', {}).get('path', 'omegacam_data.db')
+    db_name = config.get('database').get('name')  # mandatory for consistency
+    work_dir = config.get('mosaic_working_directory')  # mandatory
+    db_path = Path(work_dir) / db_name
     db = Database(db_path)
     logger.info(f"Connected to database at {db_path}.")
 

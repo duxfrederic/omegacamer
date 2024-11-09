@@ -23,7 +23,7 @@ def determine_night(timestamp_utc, timezone='America/Santiago'):
     Returns the date corresponding to the night start (previous day if time is before 8 PM).
     """
     tz = pytz.timezone(timezone)
-    dt_utc = datetime.strptime(timestamp_utc, "%Y-%m-%dT%H:%M:%S.%f")
+    dt_utc = datetime.strptime(timestamp_utc, "%Y-%m-%dT%H:%M:%S")
     dt_local = pytz.utc.localize(dt_utc).astimezone(tz)
 
     if dt_local.hour >= 20:

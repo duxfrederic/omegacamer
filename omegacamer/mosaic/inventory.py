@@ -64,9 +64,9 @@ def main():
         for fits_file in fits_files:
             try:
                 timestamp, mjd, ccd_id = parse_filename(fits_file)
-                epoch_id = db.insert_epoch(timestamp, mjd)
                 target = fits.getheader(fits_file)['OBJECT']
-                db.insert_exposure(target, epoch_id, ccd_id, fits_file)
+                epoch_id = db.insert_epoch(target, timestamp, mjd)
+                db.insert_exposure(epoch_id, ccd_id, fits_file)
             except ValueError as ve:
                 logger.warning(str(ve))
             except Exception as e:

@@ -29,6 +29,26 @@ class Database:
             )
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mosaics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target TEXT,
+                night DATE,
+                mosaic_file_path TEXT UNIQUE,
+                UNIQUE(target, night)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mosaic_epochs (
+                mosaic_id INTEGER,
+                epoch_id INTEGER,
+                FOREIGN KEY (mosaic_id) REFERENCES mosaics(id),
+                FOREIGN KEY (epoch_id) REFERENCES epochs(id),
+                PRIMARY KEY (mosaic_id, epoch_id)
+            )
+        """)
+
         self.conn.commit()
 
     def insert_epoch(self, target, timestamp, mjd):
@@ -64,6 +84,43 @@ class Database:
             HAVING ccd_count != ?
         """, (expected_count,))
         return cursor.fetchall()
+
+    def insert_mosaic(self, target, night, mosaic_file_path):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO mosaics (target, night, mosaic_file_path)
+                VALUES (?, ?, ?)
+            """, (target, night, mosaic_file_path))
+            self.conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # Mosaic already exists
+            cursor.execute("""
+                SELECT id FROM mosaics WHERE target = ? AND night = ?
+            """, (target, night))
+            result = cursor.fetchone()
+            return result[0] if result else None
+
+    def get_mosaic(self, target, night):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, mosaic_file_path FROM mosaics
+            WHERE target = ? AND night = ?
+        """, (target, night))
+        return cursor.fetchone()
+
+    def associate_mosaic_epoch(self, mosaic_id, epoch_id):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO mosaic_epochs (mosaic_id, epoch_id)
+                VALUES (?, ?)
+            """, (mosaic_id, epoch_id))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            # Association already exists
+            pass
 
     def close(self):
         self.conn.close()

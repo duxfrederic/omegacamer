@@ -37,3 +37,4 @@ logging:
   level: INFO
   file: omegacam_mosaic.log
 
+ccd_masks_directory: /projects/astro/cosmograil/PRERED/VST/mosaic_masks

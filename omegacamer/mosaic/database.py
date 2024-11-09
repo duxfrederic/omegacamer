@@ -121,6 +121,33 @@ class Database:
         except sqlite3.IntegrityError:
             # Association already exists
             pass
+    def get_target_night_without_mosaic(self):
+        """
+        Retrieves groups (target, night) that do not have an associated mosaic.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT epochs.target, mosaics.night
+            FROM epochs
+            JOIN exposures ON epochs.id = exposures.epoch_id
+            LEFT JOIN mosaic_epochs ON exposures.epoch_id = mosaic_epochs.epoch_id
+            LEFT JOIN mosaics ON mosaic_epochs.mosaic_id = mosaics.id
+            WHERE mosaics.id IS NULL
+        """)
+        return cursor.fetchall()
+
+    def get_exposures_by_target_night(self, target, night):
+        """
+        Retrieves all exposures for a given target and night.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT exposures.id, exposures.file_path, exposures.ccd_id
+            FROM exposures
+            JOIN epochs ON exposures.epoch_id = epochs.id
+            WHERE epochs.target = ? AND DATE(epochs.timestamp) = ?
+        """, (target, night))
+        return cursor.fetchall()
 
     def close(self):
         self.conn.close()

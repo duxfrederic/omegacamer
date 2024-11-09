@@ -1,0 +1,22 @@
+# config.yaml
+
+working_directory: "/tmp/"
+
+credentials:
+  user: "fredericdux"
+  program_id: "114.27U3.001"
+
+
+# path to save the HTML report
+report_path: "/www/people/dux/public/p3_vst_reduction_status.html"
+
+
+# directory containing the reduced data
+reduced_data_dir: "/projects/astro/cosmograil/PRERED/VST/reduced/"
+
+# list of lenses to consider
+lenses:
+  - "eRASS1_J0501-0733"
+  - "COOL_J0542-2125"
+  - "J0722-3901"
+

@@ -37,7 +37,7 @@ def main():
     config = load_config(os.environ['OMEGACAMER_CONFIG'])
     work_dir = Path(config.get('mosaic_working_directory'))  # mandatory
     log_level = getattr(logging, config.get('logging', {}).get('level', 'INFO').upper(), logging.INFO)
-    log_file = workdir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
+    log_file = work_dir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
     logger = setup_logger(log_level, log_file)
 
     logger.info("Starting inventory process.")

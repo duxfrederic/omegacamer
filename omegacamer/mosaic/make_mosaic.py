@@ -28,7 +28,7 @@ def create_noise_map(data_adu, rms_adu, gain, mask=None):
     rms_electron = rms_adu * gain
     data_electron = data_adu * gain
     noise_map_electron = np.sqrt(rms_electron**2 + np.abs(data_electron))
-
+    breakpoint()
     if mask is not None:
         noise_map_electron[mask] = 1e8
 
@@ -140,25 +140,22 @@ def main():
                 logger.info(f"Noisemap already exist for exposure ID {exposure_id}")
                 continue
 
-            try:
-                logger.info(f"Processing exposure ID {exposure_id}: {fits_file}")
+            logger.info(f"Processing exposure ID {exposure_id}: {fits_file}")
 
-                with fits.open(fits_file) as hdul:
-                    data = hdul[0].data.astype(float)
-                    header = hdul[0].header
+            with fits.open(fits_file) as hdul:
+                data = hdul[0].data.astype(float)
+                header = hdul[0].header
 
-                mean, median, std = sigma_clipped_stats(data, sigma=3.0, maxiters=5)
+            mean, median, std = sigma_clipped_stats(data, sigma=3.0, maxiters=5)
 
-                # noisemap in ADU
-                mask = ccd_masks.get(ccd_id, None)
-                noise_map_adu = create_noise_map(data, std, header['GAIN'], mask=mask)
+            # noisemap in ADU
+            mask = ccd_masks.get(ccd_id, None)
+            noise_map_adu = create_noise_map(data, std, header['GAIN'], mask=mask)
 
-                hdu_noise_map = fits.PrimaryHDU(data=noise_map_adu, header=header)
-                hdu_noise_map.writeto(noise_map_path, overwrite=True)
-                logger.debug(f"Saved noise map file: {noise_map_path}")
+            hdu_noise_map = fits.PrimaryHDU(data=noise_map_adu, header=header)
+            hdu_noise_map.writeto(noise_map_path, overwrite=True)
+            logger.debug(f"Saved noise map file: {noise_map_path}")
 
-            except Exception as e:
-                logger.error(f"Failed to process exposure ID {exposure_id}: {e}")
             break
             # for now just doing one.
             # insert mosaic creation here.

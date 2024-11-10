@@ -64,6 +64,7 @@ def make_mosaic(target_name, night_date):
     exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
     logger.info(f"Found {len(exposure_paths)} for target {target_name}, in the night of the {night_date}.")
     for ii, exposure_path in enumerate(exposure_paths):
+        exposure_path = Path(exposure_path)
         # 2. create a soft link of each exposure at the directory of the mosaic -- will be used by swarp.
         soft_link = mosaic_dir_path / exposure_path.name
         if not soft_link.exists():

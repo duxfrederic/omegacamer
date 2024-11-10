@@ -1,21 +1,11 @@
-import yaml
-import sqlite3
 from pathlib import Path
-from datetime import datetime, timedelta
-from astropy.time import Time
 from database import Database
 from logger import setup_logger
 import logging
 import os
 import sys
-import shutil
-import pytz
 
-from utils import determine_night
-
-def load_config(config_path):
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+from utils import determine_night, load_config
 
 
 def main():
@@ -104,19 +94,9 @@ def main():
             except OSError as e:
                 logger.error(f"Failed to create symlink for {exposure_path}: {e}")
 
-        # make mosaic? not yet.
-        #mosaic_file = night_dir / f"{target}_{night}_mosaic.fits"  # Placeholder path
-        #mosaic_id = db.insert_mosaic(target, str(night), str(mosaic_file))
-        #if mosaic_id:
-        #    logger.info(f"Inserted mosaic record for Target: {target}, Night: {night}.")
-        #    # Associate epochs with the mosaic
-        #    for epoch_id in epoch_ids:
-        #        db.associate_mosaic_epoch(mosaic_id, epoch_id)
-        #else:
-        #    logger.error(f"Failed to insert mosaic for Target: {target}, Night: {night}.")
-
     db.close()
     logger.info("Grouping and linking process completed.")
+
 
 if __name__ == "__main__":
     main()

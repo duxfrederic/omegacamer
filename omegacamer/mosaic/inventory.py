@@ -1,17 +1,12 @@
 import os
-import yaml
-import sqlite3
 from pathlib import Path
-from datetime import datetime
 from astropy.time import Time
 from astropy.io import fits
 from database import Database
 from logger import setup_logger
-import sys
 
-def load_config(config_path):
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+from utils import load_config
+
 
 def parse_filename(filename):
     """

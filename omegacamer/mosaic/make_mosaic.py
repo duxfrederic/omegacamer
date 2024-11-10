@@ -1,10 +1,6 @@
-import yaml
-import sqlite3
 from pathlib import Path
-from datetime import datetime, timedelta
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
-from ccdproc import CCDData
 import numpy as np
 from database import Database
 from logger import setup_logger
@@ -12,9 +8,7 @@ import logging
 import os
 import sys
 
-def load_config(config_path):
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+from utils import determine_night, load_config
 
 
 def create_noise_map(data_adu, rms_adu, gain, mask=None):
@@ -40,6 +34,7 @@ def create_noise_map(data_adu, rms_adu, gain, mask=None):
 
     noise_map_adu = noise_map_electron / gain
     return noise_map_adu
+
 
 def main():
     config_path = os.environ.get('OMEGACAMER_CONFIG')
@@ -168,8 +163,8 @@ def main():
             # for now just doing one.
             # insert mosaic creation here.
 
-
     db.close()
+
 
 if __name__ == "__main__":
     main()

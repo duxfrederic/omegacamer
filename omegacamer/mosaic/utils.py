@@ -1,5 +1,12 @@
 from datetime import datetime, timedelta
 import pytz
+import yaml
+
+
+def load_config(config_path):
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
 
 def determine_night(timestamp_utc, timezone='America/Santiago'):
     """

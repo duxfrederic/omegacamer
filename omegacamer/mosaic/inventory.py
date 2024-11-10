@@ -60,8 +60,8 @@ def main():
     else:
         logger.info("All epochs have complete CCD data.")
 
-    db.close()
     logger.info("Inventory process completed.")
+
 
 if __name__ == "__main__":
     import logging

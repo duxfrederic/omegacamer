@@ -55,8 +55,6 @@ def make_mosaic(target_name, night_date):
     log_file = work_dir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
     logger = setup_logger(log_level, log_file)
 
-    logger.info("Starting grouping and linking process.")
-
     db_name = config.get('database').get('name')
     db_path = work_dir / db_name
     db = Database(db_path)
@@ -64,22 +62,31 @@ def make_mosaic(target_name, night_date):
 
     # 1. gather exposures
     exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
-    for exposure_path in exposure_paths:
+    logger.info(f"Found {len(exposure_paths)} for target {target_name}, in the night of the {night_date}.")
+    for ii, exposure_path in enumerate(exposure_paths):
         # 2. create a soft link of each exposure at the directory of the mosaic -- will be used by swarp.
         soft_link = mosaic_dir_path / exposure_path.name
         if not soft_link.exists():
             os.symlink(exposure_path.resolve(), soft_link)
+        logger.info(f"Created symbolic link for exposure {ii+1}/{len(exposure_paths)}"
+                    f" ({exposure_path.name}) at {soft_link.parent}")
+
         # 3. make a noisemap for each exposure.
-        data_adu = fits.getdata(exposure_path)
-        header = fits.getheader(exposure_path)
-        gain = header['GAIN']
-        noisemap_adu = create_noisemap(data_adu=data_adu, gain=gain)
         weight_path = mosaic_dir_path / f"{exposure_path.stem}.weight.fits"
-        fits.writeto(filename=weight_path, data=1. / noisemap_adu**2, header=header)
+        if not weight_path.exists():
+            data_adu = fits.getdata(exposure_path)
+            header = fits.getheader(exposure_path)
+            gain = header['GAIN']
+            noisemap_adu = create_noisemap(data_adu=data_adu, gain=gain)
+            fits.writeto(filename=weight_path, data=1. / noisemap_adu**2, header=header)
+            logger.info(f"Wrote weights file: {weight_path}")
+        else:
+            logger.info(f"Weights file already exists: {weight_path}")
     # 4. ...call swarp.
     output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.fits"
     weight_output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.weight.fits"
     if not output_mosaic_file.exists():
+        logger.info(f"Calling swarp at {mosaic_dir_path}.")
         run_swarp(
             file_pattern="*FCS.fits",
             work_dir=work_dir,
@@ -89,4 +96,14 @@ def make_mosaic(target_name, night_date):
             config_file_name=f"{output_mosaic_file.stem}_config.swarp",
             subtract_back='Y'
         )
+        if output_mosaic_file.exists():
+            logger.info(f"Swarp produced a file: {output_mosaic_file}. Adding to DB.")
+            db.add_mosaic(target_name=target_name, night_date=night_date, mosaic_file_path=output_mosaic_file)
+        else:
+            logger.error(f"Swarp failed to produce the mosaic file! Directory: {mosaic_dir_path}")
+    else:
+        logger.warning(f"Mosaic file already exists, inconsistency with database?")
 
+
+if __name__ == "__main__":
+    make_mosaic('eRASS1_J0501-0733', '2024-11-06')

@@ -46,9 +46,9 @@ def make_mosaic(target_name, night_date):
     config = load_config(config_path)
 
     work_dir = Path(config.get('mosaic_working_directory'))
-    work_dir.mkdir(parents=True, exist_ok=True)
 
     mosaic_dir_path = work_dir / target_name / night_date
+    mosaic_dir_path.mkdir(parents=True, exist_ok=True)
 
     log_level_str = config.get('logging', {}).get('level', 'INFO').upper()
     log_level = getattr(logging, log_level_str, logging.INFO)

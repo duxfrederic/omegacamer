@@ -100,6 +100,8 @@ def main():
     logger.info(f"Grouped into {len(grouped)} target-night combinations.")
 
     for (target, night), epoch_ids in grouped.items():
+        if 'J0722' not in target or night != '2024-11-06':
+            continue
         logger.info(f"Processing Target: {target}, Night: {night}")
 
         # check if mosaic already exists
@@ -130,16 +132,10 @@ def main():
                 logger.error(f"FITS file does not exist: {fits_file}. Skipping exposure ID {exposure_id}.")
                 continue
 
-            noise_map_path = night_dir / f"{fits_file.stem}_sky_sub.weight.fits"
+            noise_map_path = night_dir / f"{fits_file.stem}.weight.fits"
 
             if noise_map_path.exists():
                 logger.info(f"Noisemap already exists for exposure ID {exposure_id}.")
-
-            noise_map_path = fits_file.with_name(f"{fits_file.stem}.weight.fits")
-
-            if noise_map_path.exists():
-                logger.info(f"Noisemap already exist for exposure ID {exposure_id}")
-                continue
 
             logger.info(f"Processing exposure ID {exposure_id}: {fits_file}")
 

@@ -1,32 +1,11 @@
 import os
 from pathlib import Path
-from astropy.time import Time
 from astropy.io import fits
 from database import Database
 from logger import setup_logger
 
-from utils import load_config
+from utils import load_config, parse_filename, determine_night
 
-
-def parse_filename(filename):
-    """
-    Parses the filename to extract timestamp and CCD ID.
-    Expected format: OMEGA.<timestamp>_<ccd_id>OFCS.fits
-    Example: OMEGA.2024-11-08T06:33:23.138_10OFCS.fits
-    """
-    try:
-        base = filename.stem  # remove .fits
-        parts = base.split('_')
-        timestamp_str = parts[0].split('.')[1]  # e.g. '2024-11-08T06:33:23.138'
-        ccd_id_str = parts[1].replace('OFCS', '')  # e.g. '10'
-        timestamp = timestamp_str
-        # to MJD
-        t = Time(timestamp, format='isot', scale='utc')
-        mjd = t.mjd
-        ccd_id = int(ccd_id_str)
-        return timestamp, mjd, ccd_id
-    except Exception as e:
-        raise ValueError(f"Filename {filename} does not match expected format.") from e
 
 def main():
     config = load_config(os.environ['OMEGACAMER_CONFIG'])
@@ -53,22 +32,27 @@ def main():
         logger.info(f"Processing directory: {dir_path}")
 
         # list all fits files in there
-        fits_files = list(dir_path.glob('OMEGA.*FCS.fits'))
+        fits_files = list(dir_path.glob(config['discovery_file_pattern']))
         logger.info(f"Found {len(fits_files)} FITS files in {dir_path}.")
 
         for fits_file in fits_files:
             try:
                 timestamp, mjd, ccd_id = parse_filename(fits_file)
-                target = fits.getheader(fits_file)['OBJECT']
-                epoch_id = db.insert_epoch(target, timestamp, mjd)
-                db.insert_exposure(epoch_id, ccd_id, fits_file)
+                target_name = fits.getheader(fits_file)['OBJECT']
+                night_date = determine_night(timestamp)
+                db.add_exposure(target_name=target_name,
+                                night_date=night_date,
+                                timestamp=timestamp,
+                                mjd=mjd,
+                                ccd_id=ccd_id,
+                                file_path=str(fits_file))
             except ValueError as ve:
                 logger.warning(str(ve))
             except Exception as e:
                 logger.error(f"Error processing file {fits_file}: {e}")
 
     # check for epochs with missing CCDs
-    incomplete_epochs = db.get_epochs_with_ccd_count()
+    incomplete_epochs = db.get_epochs_with_too_few_ccds()
     if incomplete_epochs:
         logger.warning("The following epochs have missing CCDs:")
         for epoch in incomplete_epochs:

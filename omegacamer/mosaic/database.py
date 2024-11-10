@@ -8,15 +8,34 @@ class Database:
         self.conn = sqlite3.connect(self.db_path)
         self.create_tables()
 
+    def __del__(self):
+        self.conn.close()
+
     def create_tables(self):
         cursor = self.conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS targets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS nights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT UNIQUE -- e.g. 2024-11-06, "night of the"
+            )
+        """)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS epochs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                target TEXT,
+                target_id INTEGER,
+                night_id INTEGER,
                 timestamp TEXT UNIQUE,
-                mjd REAL
+                mjd REAL,
+                FOREIGN KEY (target_id) REFERENCES targets(id),
+                FOREIGN KEY (night_id) REFERENCES nights(id)
             )
         """)
 
@@ -33,143 +52,112 @@ class Database:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS mosaics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                target TEXT,
-                night DATE,
+                target_id INTEGER,
+                night_id INTEGER,
                 mosaic_file_path TEXT UNIQUE,
-                UNIQUE(target, night)
-            )
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS mosaic_epochs (
-                mosaic_id INTEGER,
-                epoch_id INTEGER,
-                FOREIGN KEY (mosaic_id) REFERENCES mosaics(id),
-                FOREIGN KEY (epoch_id) REFERENCES epochs(id),
-                PRIMARY KEY (mosaic_id, epoch_id)
+                FOREIGN KEY (target_id) REFERENCES targets(id),
+                FOREIGN KEY (night_id) REFERENCES nights(id)
             )
         """)
 
         self.conn.commit()
 
-    def insert_epoch(self, target, timestamp, mjd):
+    def add_exposure(self, target_name, night_date, timestamp, mjd, ccd_id, file_path):
         cursor = self.conn.cursor()
-        try:
-            cursor.execute("INSERT INTO epochs (target, timestamp, mjd) VALUES (?, ?, ?)", (target, timestamp, mjd))
-            self.conn.commit()
-            return cursor.lastrowid
-        except sqlite3.IntegrityError:
-            # Epoch already exists
-            cursor.execute("SELECT id FROM epochs WHERE timestamp = ?", (timestamp,))
-            return cursor.fetchone()[0]
 
-    def insert_exposure(self, epoch_id, ccd_id, file_path):
+        # add target if it doesn't exist
+        cursor.execute("INSERT OR IGNORE INTO targets (name) VALUES (?)", (target_name,))
+        # Add night if it doesn't exist
+        cursor.execute("INSERT OR IGNORE INTO nights (date) VALUES (?)", (night_date,))
+
+        # retrieve target_id and night_id
+        cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
+        target_id = cursor.fetchone()[0]
+        cursor.execute("SELECT id FROM nights WHERE date = ?", (night_date,))
+        night_id = cursor.fetchone()[0]
+
+        # add epoch if it doesn't exist
+        cursor.execute("""
+            INSERT OR IGNORE INTO epochs (target_id, night_id, timestamp, mjd) 
+            VALUES (?, ?, ?, ?)
+        """, (target_id, night_id, timestamp, mjd))
+
+        # get epoch_id back
+        cursor.execute("SELECT id FROM epochs WHERE timestamp = ?", (timestamp,))
+        epoch_id = cursor.fetchone()[0]
+
+        # add exposure.
+        cursor.execute("""
+            INSERT OR IGNORE INTO exposures (epoch_id, ccd_id, file_path) 
+            VALUES (?, ?, ?)
+        """, (epoch_id, ccd_id, file_path))
+
+        self.conn.commit()
+
+    def get_missing_mosaics(self):
         cursor = self.conn.cursor()
-        try:
-            cursor.execute("""
-                INSERT INTO exposures (epoch_id, ccd_id, file_path)
-                VALUES (?, ?, ?)
-            """, (epoch_id, ccd_id, str(file_path)))
-            self.conn.commit()
-        except sqlite3.IntegrityError:
-            # Exposure already exists
-            pass
+        cursor.execute("""
+            SELECT nights.date, targets.name 
+            FROM nights, targets
+            LEFT JOIN mosaics ON mosaics.night_id = nights.id AND mosaics.target_id = targets.id
+            WHERE mosaics.id IS NULL
+        """)
+        return cursor.fetchall()
 
-    def get_epochs_with_ccd_count(self, expected_count=32):
+    def add_mosaic(self, target_name, night_date, mosaic_file_path):
+        cursor = self.conn.cursor()
+
+        # Retrieve target_id and night_id
+        cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
+        target_id = cursor.fetchone()[0]
+        cursor.execute("SELECT id FROM nights WHERE date = ?", (night_date,))
+        night_id = cursor.fetchone()[0]
+
+        # Add mosaic
+        cursor.execute("""
+            INSERT INTO mosaics (target_id, night_id, mosaic_file_path) 
+            VALUES (?, ?, ?)
+        """, (target_id, night_id, mosaic_file_path))
+
+        self.conn.commit()
+
+    def get_epochs_with_correct_ccd_count(self, expected_count=32):
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT epochs.timestamp, COUNT(exposures.id) as ccd_count
             FROM epochs
             JOIN exposures ON epochs.id = exposures.epoch_id
             GROUP BY epochs.id
-            HAVING ccd_count != ?
+            HAVING ccd_count = ?
         """, (expected_count,))
         return cursor.fetchall()
 
-    def insert_mosaic(self, target, night, mosaic_file_path):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute("""
-                INSERT INTO mosaics (target, night, mosaic_file_path)
-                VALUES (?, ?, ?)
-            """, (target, night, mosaic_file_path))
-            self.conn.commit()
-            return cursor.lastrowid
-        except sqlite3.IntegrityError:
-            # Mosaic already exists
-            cursor.execute("""
-                SELECT id FROM mosaics WHERE target = ? AND night = ?
-            """, (target, night))
-            result = cursor.fetchone()
-            return result[0] if result else None
-
-    def get_mosaic(self, target, night):
+    def get_epochs_with_too_few_ccds(self, expected_count=32):
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT id, mosaic_file_path FROM mosaics
-            WHERE target = ? AND night = ?
-        """, (target, night))
-        return cursor.fetchone()
-
-    def associate_mosaic_epoch(self, mosaic_id, epoch_id):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute("""
-                INSERT INTO mosaic_epochs (mosaic_id, epoch_id)
-                VALUES (?, ?)
-            """, (mosaic_id, epoch_id))
-            self.conn.commit()
-        except sqlite3.IntegrityError:
-            # Association already exists
-            pass
-
-    def insert_mosaic(self, target, night, mosaic_file_path):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute("""
-                INSERT INTO mosaics (target, night, mosaic_file_path)
-                VALUES (?, ?, ?)
-            """, (target, night, mosaic_file_path))
-            self.conn.commit()
-            return cursor.lastrowid
-        except sqlite3.IntegrityError:
-            # Mosaic already exists
-            cursor.execute("""
-                SELECT id FROM mosaics WHERE target = ? AND night = ?
-            """, (target, night))
-            result = cursor.fetchone()
-            return result[0] if result else None
-
-    def get_mosaic(self, target, night):
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT id, mosaic_file_path FROM mosaics
-            WHERE target = ? AND night = ?
-        """, (target, night))
-        return cursor.fetchone()
-
-    def get_all_epochs(self):
-        """
-        Retrieves all epochs from the database.
-        """
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT id, target, timestamp FROM epochs
-        """)
+            SELECT epochs.timestamp, COUNT(exposures.id) as ccd_count
+            FROM epochs
+            JOIN exposures ON epochs.id = exposures.epoch_id
+            GROUP BY epochs.id
+            HAVING ccd_count < ?
+        """, (expected_count,))
         return cursor.fetchall()
 
-    def get_exposures_by_epoch_id(self, epoch_id):
-        """
-        Retrieves all exposures for a given epoch ID.
-        """
+    def get_exposures_for_mosaic(self, target_name, night_date):
         cursor = self.conn.cursor()
+
+        # retrieve target_id and night_id
+        cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
+        target_id = cursor.fetchone()[0]
+        cursor.execute("SELECT id FROM nights WHERE date = ?", (night_date,))
+        night_id = cursor.fetchone()[0]
+
+        # get all exposures for the given target and night
         cursor.execute("""
-            SELECT id, file_path, ccd_id
+            SELECT exposures.file_path 
             FROM exposures
-            WHERE epoch_id = ?
-        """, (epoch_id,))
-        return cursor.fetchall()
+            JOIN epochs ON exposures.epoch_id = epochs.id
+            WHERE epochs.target_id = ? AND epochs.night_id = ?
+        """, (target_id, night_id))
 
-    def close(self):
-        self.conn.close()
-
+        return [row[0] for row in cursor.fetchall()]

@@ -26,7 +26,7 @@ def main():
 
     logger.info("Starting grouping and linking process.")
 
-    db_name = config.get('database').get('name')  # Mandatory for consistency
+    db_name = config.get('database').get('name')
     db_path = work_dir / db_name
     db = Database(db_path)
     logger.info(f"Connected to database at {db_path}.")
@@ -94,7 +94,6 @@ def main():
             except OSError as e:
                 logger.error(f"Failed to create symlink for {exposure_path}: {e}")
 
-    db.close()
     logger.info("Grouping and linking process completed.")
 
 

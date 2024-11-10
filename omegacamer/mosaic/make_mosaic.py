@@ -1,17 +1,18 @@
-from pathlib import Path
-from astropy.io import fits
-from astropy.stats import sigma_clipped_stats
-import numpy as np
-from database import Database
-from logger import setup_logger
-import logging
 import os
 import sys
+import logging
+from pathlib import Path
+import numpy as np
+from astropy.stats import sigma_clipped_stats
+from astropy.io import fits
 
-from utils import determine_night, load_config
+from logger import setup_logger
+from utils import load_config
+from database import Database
+from swarp_caller import run_swarp
 
 
-def create_noise_map(data_adu, rms_adu, gain, mask=None):
+def create_noisemap(data_adu, gain, mask=None):
     """
     Creates a noise map in ADU.
 
@@ -25,19 +26,18 @@ def create_noise_map(data_adu, rms_adu, gain, mask=None):
     Returns:
     - noise_map_adu: Noise map in ADU.
     """
+    _, _, rms_adu = sigma_clipped_stats(data_adu)
     rms_electron = rms_adu * gain
     data_electron = data_adu * gain
-    noise_map_electron = np.sqrt(rms_electron**2 + np.abs(data_electron))
+    noisemap_electron = np.sqrt(rms_electron**2 + np.abs(data_electron))
     if mask is not None:
-        # overscan
-        mask = mask[75:-75, 52:-52]
-        noise_map_electron[mask] = 1e8
+        noisemap_electron[mask] = 1e8
 
-    noise_map_adu = noise_map_electron / gain
-    return noise_map_adu
+    noisemap_adu = noisemap_electron / gain
+    return noisemap_adu
 
 
-def main():
+def make_mosaic(target_name, night_date):
     config_path = os.environ.get('OMEGACAMER_CONFIG')
     if not config_path:
         print("Environment variable 'OMEGACAMER_CONFIG' not set.")
@@ -48,118 +48,45 @@ def main():
     work_dir = Path(config.get('mosaic_working_directory'))
     work_dir.mkdir(parents=True, exist_ok=True)
 
+    mosaic_dir_path = work_dir / target_name / night_date
+
     log_level_str = config.get('logging', {}).get('level', 'INFO').upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
     log_file = work_dir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
     logger = setup_logger(log_level, log_file)
 
-    logger.info("Starting sky subtraction and noise map computation.")
+    logger.info("Starting grouping and linking process.")
 
     db_name = config.get('database').get('name')
     db_path = work_dir / db_name
     db = Database(db_path)
     logger.info(f"Connected to database at {db_path}.")
 
-    # CCD masks: generated once with ~lenses/prered_pipeline/VST/make_masks.py, masking bad columns
-    ccd_masks_dir = Path(config.get('ccd_masks_directory'))
-    if not ccd_masks_dir.exists() or not ccd_masks_dir.is_dir():
-        logger.error(f"CCD masks directory does not exist or is not a directory: {ccd_masks_dir}")
-        sys.exit(1)
-
-    ccd_masks = {}
-    for mask_file in ccd_masks_dir.glob('*.fits'):
-        ccd_id_str = mask_file.stem  # assuming filename is like '10.fits'
-        try:
-            ccd_id = int(ccd_id_str)
-            with fits.open(mask_file) as hdul:
-                mask_data = hdul[0].data.astype(bool)
-            ccd_masks[ccd_id] = mask_data
-            logger.debug(f"Loaded mask for CCD {ccd_id} from {mask_file}.")
-        except ValueError:
-            logger.warning(f"Mask file {mask_file} does not have a valid CCD ID in its filename.")
-        except Exception as e:
-            logger.error(f"Failed to load mask file {mask_file}: {e}")
-
-    if not ccd_masks:
-        logger.warning("No CCD masks loaded. Noise maps will not be adjusted based on masks.")
-
-    # get target-night groups without mosaics
-    epochs = db.get_all_epochs()
-    logger.info(f"Fetched {len(epochs)} epochs from the database.")
-
-    # group epochs by target and night
-    from collections import defaultdict
-    grouped = defaultdict(list)  # key: (target, night), value: list of epoch_ids
-
-    for epoch in epochs:
-        epoch_id, target, timestamp = epoch
-        night = determine_night(timestamp)
-        key = (target, night)
-        grouped[key].append(epoch_id)
-
-    logger.info(f"Grouped into {len(grouped)} target-night combinations.")
-
-    for (target, night), epoch_ids in grouped.items():
-        if 'J0722' not in target or night != '2024-11-06':
-            continue
-        logger.info(f"Processing Target: {target}, Night: {night}")
-
-        # check if mosaic already exists
-        existing_mosaic = db.get_mosaic(target, night)
-        if existing_mosaic:
-            logger.info(f"Mosaic already exists for Target: {target}, Night: {night}. Skipping.")
-            continue
-
-        target_dir = work_dir / target
-        night_dir = target_dir / str(night)
-        night_dir.mkdir(parents=True, exist_ok=True)
-
-        # retrieve all exposures in the group
-        exposures = []
-        for epoch_id in epoch_ids:
-            exp = db.get_exposures_by_epoch_id(epoch_id)
-            exposures.extend(exp)
-
-        if not exposures:
-            logger.warning(f"No exposures found for Target: {target}, Night: {night}. Skipping.")
-            continue
-
-        for exposure in exposures:
-            exposure_id, file_path, ccd_id = exposure
-            fits_file = Path(file_path)
-
-            if not fits_file.exists():
-                logger.error(f"FITS file does not exist: {fits_file}. Skipping exposure ID {exposure_id}.")
-                continue
-
-            noise_map_path = night_dir / f"{fits_file.stem}.weight.fits"
-
-            if noise_map_path.exists():
-                logger.info(f"Noisemap already exists for exposure ID {exposure_id}.")
-
-            logger.info(f"Processing exposure ID {exposure_id}: {fits_file}")
-
-            with fits.open(fits_file) as hdul:
-                data = hdul[0].data.astype(float)
-                header = hdul[0].header
-
-            mean, median, std = sigma_clipped_stats(data, sigma=3.0, maxiters=5)
-
-            # noisemap in ADU
-            mask = ccd_masks.get(ccd_id, None)
-            noise_map_adu = create_noise_map(data, std, header['GAIN'], mask=mask)
-
-            hdu_noise_map = fits.PrimaryHDU(data=noise_map_adu, header=header)
-            hdu_noise_map.writeto(noise_map_path, overwrite=True)
-            logger.debug(f"Saved noise map file: {noise_map_path}")
-
-            break
-            # for now just doing one.
-            # insert mosaic creation here.
-
-    db.close()
-
-
-if __name__ == "__main__":
-    main()
+    # 1. gather exposures
+    exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
+    for exposure_path in exposure_paths:
+        # 2. create a soft link of each exposure at the directory of the mosaic -- will be used by swarp.
+        soft_link = mosaic_dir_path / exposure_path.name
+        if not soft_link.exists():
+            os.symlink(exposure_path.resolve(), soft_link)
+        # 3. make a noisemap for each exposure.
+        data_adu = fits.getdata(exposure_path)
+        header = fits.getheader(exposure_path)
+        gain = header['GAIN']
+        noisemap_adu = create_noisemap(data_adu=data_adu, gain=gain)
+        weight_path = mosaic_dir_path / f"{exposure_path.stem}.weight.fits"
+        fits.writeto(filename=weight_path, data=1. / noisemap_adu**2, header=header)
+    # 4. ...call swarp.
+    output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.fits"
+    weight_output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.weight.fits"
+    if not output_mosaic_file.exists():
+        run_swarp(
+            file_pattern="*FCS.fits",
+            work_dir=work_dir,
+            output_filename=output_mosaic_file.name,
+            weight_output_filename=weight_output_mosaic_file.name,
+            redo=False,
+            config_file_name=f"{output_mosaic_file.stem}_config.swarp",
+            subtract_back='Y'
+        )
 

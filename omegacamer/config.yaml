@@ -23,6 +23,8 @@ lenses:
 
 ####################### mosaic
 
+discovery_file_pattern: "OMEGA.*FCS.fits"
+
 mosaic_working_directory: /projects/astro/cosmograil/PRERED/VST/mosaic
 
 directories:

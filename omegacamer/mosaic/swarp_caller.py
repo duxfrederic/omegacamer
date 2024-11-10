@@ -35,7 +35,7 @@ def write_swarp_config(
     weight_type="NONE",
     weight_suffix=".weight.fits",
     combine="Y",
-    combine_type="MEDIAN",
+    combine_type="WEIGHTED",
     celestial_type="NATIVE",
     projection_type="TAN",
     projection_err=0.001,
@@ -55,22 +55,22 @@ def write_swarp_config(
     fscale_default=1.0,
     gain_keyword="GAIN",
     gain_default=0.0,
-    subtract_back="N",
+    subtract_back="Y",
     back_type="AUTO",
     back_default=0.0,
     back_size=128,
     back_filtersize=3,
     vmem_dir=".",
-    vmem_max=2047,
-    mem_max=2048,
-    combine_bufsize=256,
+    vmem_max=16*2047,
+    mem_max=8*2048,
+    combine_bufsize=8*2048,
     delete_tmpfiles="Y",
     copy_keywords="OBJECT",
     write_fileinfo="N",
-    write_xml="Y",
+    write_xml="N",
     xml_name="swarp.xml",
     verbose_type="NORMAL",
-    nthreads=0,
+    nthreads=16,
     config_file_path="swarp.config"
 ):
     config_content = f"""# Default configuration file for SWarp
@@ -146,4 +146,3 @@ NTHREADS               {nthreads}               # Number of simultaneous threads
 """
     with open(config_file_path, 'w') as config_file:
         config_file.write(config_content)
-

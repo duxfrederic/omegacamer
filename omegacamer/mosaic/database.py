@@ -121,32 +121,52 @@ class Database:
         except sqlite3.IntegrityError:
             # Association already exists
             pass
-    def get_target_night_without_mosaic(self):
+
+    def insert_mosaic(self, target, night, mosaic_file_path):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO mosaics (target, night, mosaic_file_path)
+                VALUES (?, ?, ?)
+            """, (target, night, mosaic_file_path))
+            self.conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # Mosaic already exists
+            cursor.execute("""
+                SELECT id FROM mosaics WHERE target = ? AND night = ?
+            """, (target, night))
+            result = cursor.fetchone()
+            return result[0] if result else None
+
+    def get_mosaic(self, target, night):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, mosaic_file_path FROM mosaics
+            WHERE target = ? AND night = ?
+        """, (target, night))
+        return cursor.fetchone()
+
+    def get_all_epochs(self):
         """
-        Retrieves groups (target, night) that do not have an associated mosaic.
+        Retrieves all epochs from the database.
         """
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT epochs.target, mosaics.night
-            FROM epochs
-            JOIN exposures ON epochs.id = exposures.epoch_id
-            LEFT JOIN mosaic_epochs ON exposures.epoch_id = mosaic_epochs.epoch_id
-            LEFT JOIN mosaics ON mosaic_epochs.mosaic_id = mosaics.id
-            WHERE mosaics.id IS NULL
+            SELECT id, target, timestamp FROM epochs
         """)
         return cursor.fetchall()
 
-    def get_exposures_by_target_night(self, target, night):
+    def get_exposures_by_epoch_id(self, epoch_id):
         """
-        Retrieves all exposures for a given target and night.
+        Retrieves all exposures for a given epoch ID.
         """
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT exposures.id, exposures.file_path, exposures.ccd_id
+            SELECT id, file_path, ccd_id, gain, exptime
             FROM exposures
-            JOIN epochs ON exposures.epoch_id = epochs.id
-            WHERE epochs.target = ? AND DATE(epochs.timestamp) = ?
-        """, (target, night))
+            WHERE epoch_id = ?
+        """, (epoch_id,))
         return cursor.fetchall()
 
     def close(self):

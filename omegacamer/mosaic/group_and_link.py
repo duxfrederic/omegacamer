@@ -11,27 +11,12 @@ import sys
 import shutil
 import pytz
 
+from utils import determine_night
+
 def load_config(config_path):
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
-def determine_night(timestamp_utc, timezone='America/Santiago'):
-    """
-    Determines the night date based on Paranal (Chile) local time.
-    Night is defined as ~from 8 PM to 7 AM local time.
-
-    Returns the date corresponding to the night start (previous day if time is before 8 PM).
-    """
-    tz = pytz.timezone(timezone)
-    dt_utc = datetime.strptime(timestamp_utc, "%Y-%m-%dT%H:%M:%S")
-    dt_local = pytz.utc.localize(dt_utc).astimezone(tz)
-
-    if dt_local.hour >= 20:
-        night_date = dt_local.date()
-    else:
-        night_date = (dt_local - timedelta(days=1)).date()
-
-    return night_date
 
 def main():
     config_path = os.environ.get('OMEGACAMER_CONFIG')

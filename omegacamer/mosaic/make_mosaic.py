@@ -122,7 +122,7 @@ def main():
             continue
 
         for exposure in exposures:
-            exposure_id, file_path, ccd_id, gain, exptime = exposure
+            exposure_id, file_path, ccd_id = exposure
             fits_file = Path(file_path)
 
             if not fits_file.exists():
@@ -151,7 +151,7 @@ def main():
 
                 # noisemap in ADU
                 mask = ccd_masks.get(ccd_id, None)
-                noise_map_adu = create_noise_map(data, std, gain, mask=mask)
+                noise_map_adu = create_noise_map(data, std, header['GAIN'], mask=mask)
 
                 hdu_noise_map = fits.PrimaryHDU(data=noise_map_adu, header=header)
                 hdu_noise_map.writeto(noise_map_path, overwrite=True)

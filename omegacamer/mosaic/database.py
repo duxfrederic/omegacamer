@@ -164,7 +164,7 @@ class Database:
         """
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT id, file_path, ccd_id, gain, exptime
+            SELECT id, file_path, ccd_id
             FROM exposures
             WHERE epoch_id = ?
         """, (epoch_id,))

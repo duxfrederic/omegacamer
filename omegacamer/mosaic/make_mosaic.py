@@ -18,7 +18,7 @@ def load_config(config_path):
         return yaml.safe_load(f)
 
 
-def create_noise_map(data_electron, rms_electron, gain, mask=None):
+def create_noise_map(data_adu, rms_adu, gain, mask=None):
     """
     Creates a noise map in ADU.
 
@@ -32,6 +32,8 @@ def create_noise_map(data_electron, rms_electron, gain, mask=None):
     Returns:
     - noise_map_adu: Noise map in ADU.
     """
+    rms_electron = rms_adu * gain
+    data_electron = data_adu * gain
     noise_map_electron = np.sqrt(rms_electron**2 + np.abs(data_electron))
 
     if mask is not None:

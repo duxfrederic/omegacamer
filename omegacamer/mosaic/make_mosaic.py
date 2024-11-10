@@ -28,8 +28,9 @@ def create_noise_map(data_adu, rms_adu, gain, mask=None):
     rms_electron = rms_adu * gain
     data_electron = data_adu * gain
     noise_map_electron = np.sqrt(rms_electron**2 + np.abs(data_electron))
-    breakpoint()
     if mask is not None:
+        # overscan
+        mask = mask[75:-75, 52:-52]
         noise_map_electron[mask] = 1e8
 
     noise_map_adu = noise_map_electron / gain

@@ -65,7 +65,7 @@ def load_reduced_data(config: dict) -> dict:
     lenses = config['lenses']
     reduced_dirs = {}
     for lens in lenses:
-        lens_path = reduced_data_dir / lens
+        lens_path = reduced_data_dir / f"{lens}_wide_field"
         if not lens_path.exists():
             logger.warning(f"Reduced data directory for lens '{lens}' does not exist at {lens_path}.")
         reduced_dirs[lens] = lens_path

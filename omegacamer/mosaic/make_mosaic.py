@@ -108,6 +108,8 @@ def make_mosaic(target_name, night_date):
         temporary_files.append(skysub_path)
         sources = Table(sep.extract(data_skysub, thresh=5, minarea=10,
                                     mask=ccd_masks[ccd_number], err=rms_adu))
+        sources['xcentroid'] = sources['x']
+        sources['ycentroid'] = sources['y']  # for plate solve below, needs xcentroid and ycentroid
         logger.info(f"Extracted {len(sources)} sources from exposure {ii+1}/{len(exposure_paths)}"
                     f" ({exposure_path.name})")
         # 3. Plate solve the exposure.

@@ -106,7 +106,7 @@ def make_mosaic(target_name, night_date):
         if not skysub_path.exists():
             fits.writeto(skysub_path, header=header, data=data_skysub)
         temporary_files.append(skysub_path)
-        sources = Table(sep.extract(data_skysub, thresh=5, minarea=10,
+        sources = Table(sep.extract(data_skysub, thresh=7.5, minarea=20,
                                     mask=ccd_masks[ccd_number], err=rms_adu))
         sources['xcentroid'] = sources['x']
         sources['ycentroid'] = sources['y']  # for plate solve below, needs xcentroid and ycentroid
@@ -115,7 +115,8 @@ def make_mosaic(target_name, night_date):
         # 3. Plate solve the exposure.
         wcs = plate_solve(fits_file_path=skysub_path, sources=sources,
                           use_api=False, use_n_brightest_only=100, do_debug_plot=False,
-                          use_existing_wcs_as_guess=True, logger=logger)
+                          use_existing_wcs_as_guess=True, logger=logger,
+                          redo_if_done=True)  # TODO remove that last option
         wcs['PL-SLVED'] = 'done'
         # also update the original fits file, this way it is plate solved.
         with fits.open(exposure_path, mode='update') as hdul:

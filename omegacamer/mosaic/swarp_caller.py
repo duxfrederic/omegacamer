@@ -32,7 +32,7 @@ def write_swarp_config(
     weight_output_filename="coadd.weight.fits",
     header_only="N",
     header_suffix=".head",
-    weight_type="NONE",
+    weight_type="MAP_WEIGHT",
     weight_suffix=".weight.fits",
     combine="Y",
     combine_type="WEIGHTED",

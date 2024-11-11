@@ -95,6 +95,7 @@ def make_mosaic(target_name, night_date):
         logger.info(f"Calling swarp at {mosaic_dir_path}.")
         run_swarp(
             file_pattern="*FCS.fits",
+            weight_type="MAP_WEIGHT",
             work_dir=mosaic_dir_path,
             output_filename=output_mosaic_file.name,
             weight_output_filename=weight_output_mosaic_file.name,
@@ -104,7 +105,7 @@ def make_mosaic(target_name, night_date):
         )
         if output_mosaic_file.exists():
             logger.info(f"Swarp produced a file: {output_mosaic_file}. Adding to DB.")
-            db.add_mosaic(target_name=target_name, night_date=night_date, mosaic_file_path=output_mosaic_file)
+            db.add_mosaic(target_name=target_name, night_date=night_date, mosaic_file_path=str(output_mosaic_file))
         else:
             logger.error(f"Swarp failed to produce the mosaic file! Directory: {mosaic_dir_path}")
     else:

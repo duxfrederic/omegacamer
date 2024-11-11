@@ -100,7 +100,7 @@ def make_mosaic(target_name, night_date):
         # 2. background subtract and extract sources
         skysub_path = mosaic_dir_path / exposure_path.name
         data = fits.getdata(exposure_path).astype(np.float32)
-        bg = sep.Background(data, mask=(data > 2e4), bh=1024, bw=1024)
+        bg = sep.Background(data, mask=(data > 2e4), bh=300, bw=300)
         rms_adu = bg.globalrms
         data_skysub = data - bg.back()
         if not skysub_path.exists():
@@ -122,8 +122,11 @@ def make_mosaic(target_name, night_date):
 
         # 3. Plate solve the exposure.
         sep.set_extract_pixstack(3_000_000)
-        sources = Table(sep.extract(data_skysub, thresh=7.5, minarea=25,
-                                    mask=ccd_masks[ccd_number] + (data_skysub > 5e4), err=noisemap_adu))
+        sources = Table(
+            sep.extract(data_skysub, thresh=7.5, minarea=25,
+                        mask=ccd_masks[ccd_number] + (data_skysub > 5e4),
+                        err=noisemap_adu)
+        )
         sources['xcentroid'] = sources['x']
         sources['ycentroid'] = sources['y']  # for plate solve below, needs xcentroid and ycentroid
         logger.info(f"Extracted {len(sources)} sources from exposure {ii+1}/{len(exposure_paths)}"

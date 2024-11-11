@@ -6,6 +6,8 @@ import numpy as np
 from astropy.stats import sigma_clipped_stats
 from astropy.io import fits
 
+from widefield_plate_solver import plate_solve
+
 from logger import setup_logger
 from utils import load_config
 from database import Database
@@ -65,14 +67,17 @@ def make_mosaic(target_name, night_date):
     logger.info(f"Found {len(exposure_paths)} for target {target_name}, in the night of the {night_date}.")
     for ii, exposure_path in enumerate(exposure_paths):
         exposure_path = Path(exposure_path)
-        # 2. create a soft link of each exposure at the directory of the mosaic -- will be used by swarp.
+        # 2. Plate solve the exposure.
+        plate_solve(fits_file_path=exposure_path, use_api=False, use_n_brightest_only=100, do_debug_plot=False,
+                    use_existing_wcs_as_guess=True, logger=logger)
+        # 3. create a soft link of each exposure at the directory of the mosaic -- will be used by swarp.
         soft_link = mosaic_dir_path / exposure_path.name
         if not soft_link.exists():
             os.symlink(exposure_path.resolve(), soft_link)
         logger.info(f"Created symbolic link for exposure {ii+1}/{len(exposure_paths)}"
                     f" ({exposure_path.name}) at {soft_link.parent}")
 
-        # 3. make a noisemap for each exposure.
+        # 4. make a noisemap for each exposure.
         weight_path = mosaic_dir_path / f"{exposure_path.stem}.weight.fits"
         if not weight_path.exists():
             data_adu = fits.getdata(exposure_path)
@@ -83,14 +88,14 @@ def make_mosaic(target_name, night_date):
             logger.info(f"Wrote weights file: {weight_path}")
         else:
             logger.info(f"Weights file already exists: {weight_path}")
-    # 4. ...call swarp.
+    # 5. ...call swarp.
     output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.fits"
     weight_output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.weight.fits"
     if not output_mosaic_file.exists():
         logger.info(f"Calling swarp at {mosaic_dir_path}.")
         run_swarp(
             file_pattern="*FCS.fits",
-            work_dir=work_dir,
+            work_dir=mosaic_dir_path,
             output_filename=output_mosaic_file.name,
             weight_output_filename=weight_output_mosaic_file.name,
             redo=False,

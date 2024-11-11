@@ -61,6 +61,7 @@ def make_mosaic(target_name, night_date):
     log_level = getattr(logging, log_level_str, logging.INFO)
     log_file = work_dir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
     logger = setup_logger(log_level, log_file)
+    logger.info(f'Making mosaic for target {target_name}, night of the {night_date}')
 
     db_name = config.get('database').get('name')
     db_path = work_dir / db_name
@@ -186,8 +187,8 @@ if __name__ == "__main__":
     db_name = config.get('database').get('name')
     db_path = work_dir / db_name
     db = Database(db_path)
-    targets_nights = db.get_missing_mosaics()
+    nights_targets = db.get_missing_mosaics()
     db.close()
-    print(f"{len(targets_nights)} mosaics to make.")
-    for (target, night) in targets_nights:
+    print(f"{len(nights_targets)} mosaics to make.")
+    for (night, target) in nights_targets:
         make_mosaic(target, night)

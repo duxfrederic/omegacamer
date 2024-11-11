@@ -91,7 +91,7 @@ def make_mosaic(target_name, night_date):
     temporary_files = []
     # 1. gather exposures
     exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
-    logger.info(f"Found {len(exposure_paths)} for target {target_name}, in the night of the {night_date}.")
+    logger.info(f"Found {len(exposure_paths)} exposures for target {target_name}, in the night of the {night_date}.")
     for ii, exposure_path in enumerate(exposure_paths):
         header = fits.getheader(exposure_path)
         exposure_path = Path(exposure_path)
@@ -106,13 +106,28 @@ def make_mosaic(target_name, night_date):
         if not skysub_path.exists():
             fits.writeto(skysub_path, header=header, data=data_skysub)
         temporary_files.append(skysub_path)
-        sources = Table(sep.extract(data_skysub, thresh=7.5, minarea=20,
-                                    mask=ccd_masks[ccd_number], err=rms_adu))
+        logger.info(f"Sky-subtracted exposure {ii+1}/{len(exposure_paths)}")
+
+        # 3. make a noisemap for each exposure.
+        weight_path = mosaic_dir_path / f"{exposure_path.stem}.weight.fits"
+        if not weight_path.exists():
+            gain = header['GAIN']
+            noisemap_adu = create_noisemap(data_adu_sky_sub=data_skysub, gain=gain, mask=mask, rms_adu=rms_adu)
+            fits.writeto(filename=weight_path, data=1. / noisemap_adu**2, header=header)
+            logger.info(f"Wrote weights file: {weight_path}")
+        else:
+            logger.info(f"Weights file already exists: {weight_path}")
+        temporary_files.append(weight_path)
+
+        # 3. Plate solve the exposure.
+        sep.set_extract_pixstack(3_000_000)
+        sources = Table(sep.extract(data_skysub, thresh=7.5, minarea=25,
+                                    mask=ccd_masks[ccd_number] + (data_skysub > 5e4), err=noisemap_adu))
         sources['xcentroid'] = sources['x']
         sources['ycentroid'] = sources['y']  # for plate solve below, needs xcentroid and ycentroid
         logger.info(f"Extracted {len(sources)} sources from exposure {ii+1}/{len(exposure_paths)}"
                     f" ({exposure_path.name})")
-        # 3. Plate solve the exposure.
+
         wcs = plate_solve(fits_file_path=skysub_path, sources=sources,
                           use_api=False, use_n_brightest_only=100, do_debug_plot=False,
                           use_existing_wcs_as_guess=True, logger=logger,
@@ -123,17 +138,6 @@ def make_mosaic(target_name, night_date):
             hdul[0].header.update(wcs)
             hdul.flush()
 
-        # 4. make a noisemap for each exposure.
-        weight_path = mosaic_dir_path / f"{exposure_path.stem}.weight.fits"
-        if not weight_path.exists():
-            data_adu = fits.getdata(exposure_path)
-            gain = header['GAIN']
-            noisemap_adu = create_noisemap(data_adu_sky_sub=data_skysub, gain=gain, mask=mask, rms_adu=rms_adu)
-            fits.writeto(filename=weight_path, data=1. / noisemap_adu**2, header=header)
-            logger.info(f"Wrote weights file: {weight_path}")
-        else:
-            logger.info(f"Weights file already exists: {weight_path}")
-        temporary_files.append(weight_path)
     # 5. ...call swarp.
     output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.fits"
     weight_output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.weight.fits"

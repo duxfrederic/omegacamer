@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 from astropy.stats import sigma_clipped_stats
 from astropy.io import fits
+import re
 
 from widefield_plate_solver import plate_solve
 
@@ -39,6 +40,11 @@ def create_noisemap(data_adu, gain, mask=None):
     return noisemap_adu
 
 
+def extract_ccd_number_from_filename(filename):
+    match = re.search(r"_(\d+)OFCS", filename)
+    return int(match.group(1)) if match else None
+
+
 def make_mosaic(target_name, night_date):
     config_path = os.environ.get('OMEGACAMER_CONFIG')
     if not config_path:
@@ -62,6 +68,26 @@ def make_mosaic(target_name, night_date):
     db = Database(db_path)
     logger.info(f"Connected to database at {db_path}.")
 
+    # CCD masks: generated once with ~lenses/prered_pipeline/VST/make_masks.py, masking bad columns
+    ccd_masks_dir = Path(config.get('ccd_masks_directory'))
+    if not ccd_masks_dir.exists() or not ccd_masks_dir.is_dir():
+        logger.error(f"CCD masks directory does not exist or is not a directory: {ccd_masks_dir}")
+        sys.exit(1)
+
+    ccd_masks = {}
+    for mask_file in ccd_masks_dir.glob('*.fits'):
+        ccd_id_str = mask_file.stem  # assuming filename is like '10.fits'
+        try:
+            ccd_id = int(ccd_id_str)
+            with fits.open(mask_file) as hdul:
+                mask_data = hdul[0].data.astype(bool)
+            ccd_masks[ccd_id] = mask_data
+            logger.debug(f"Loaded mask for CCD {ccd_id} from {mask_file}.")
+        except ValueError:
+            logger.warning(f"Mask file {mask_file} does not have a valid CCD ID in its filename.")
+        except Exception as e:
+            logger.error(f"Failed to load mask file {mask_file}: {e}")
+
     # 1. gather exposures
     exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
     logger.info(f"Found {len(exposure_paths)} for target {target_name}, in the night of the {night_date}.")
@@ -83,7 +109,9 @@ def make_mosaic(target_name, night_date):
             data_adu = fits.getdata(exposure_path)
             header = fits.getheader(exposure_path)
             gain = header['GAIN']
-            noisemap_adu = create_noisemap(data_adu=data_adu, gain=gain)
+            ccd_number = extract_ccd_number_from_filename(exposure_path.name)
+            mask = ccd_masks[ccd_number]
+            noisemap_adu = create_noisemap(data_adu=data_adu, gain=gain, mask=mask)
             fits.writeto(filename=weight_path, data=1. / noisemap_adu**2, header=header)
             logger.info(f"Wrote weights file: {weight_path}")
         else:

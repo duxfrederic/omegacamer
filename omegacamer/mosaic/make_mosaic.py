@@ -5,7 +5,9 @@ from pathlib import Path
 import numpy as np
 from astropy.stats import sigma_clipped_stats
 from astropy.io import fits
+from astropy.table import Table
 import re
+import sep
 
 from widefield_plate_solver import plate_solve
 
@@ -15,23 +17,21 @@ from database import Database
 from swarp_caller import run_swarp
 
 
-def create_noisemap(data_adu, gain, mask=None):
+def create_noisemap(data_adu_sky_sub, gain, rms_adu, mask):
     """
     Creates a noise map in ADU.
 
     Parameters:
-    - data_electron: Sky-subtracted data in electrons.
-    - rms_electron: RMS of the background in electrons.
+    - data_adu_sky_sub: Sky-subtracted data.
     - gain: Gain value.
+    - rms_adu: std of background
     - mask: Boolean array where True indicates regions to boost noise.
-    - boost_factor: Factor by which to boost the noise.
 
     Returns:
     - noise_map_adu: Noise map in ADU.
     """
-    _, _, rms_adu = sigma_clipped_stats(data_adu)
     rms_electron = rms_adu * gain
-    data_electron = data_adu * gain
+    data_electron = data_adu_sky_sub * gain
     noisemap_electron = np.sqrt(rms_electron**2 + np.abs(data_electron))
     if mask is not None:
         noisemap_electron[mask] = 1e8
@@ -88,34 +88,49 @@ def make_mosaic(target_name, night_date):
         except Exception as e:
             logger.error(f"Failed to load mask file {mask_file}: {e}")
 
+    temporary_files = []
     # 1. gather exposures
     exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
     logger.info(f"Found {len(exposure_paths)} for target {target_name}, in the night of the {night_date}.")
     for ii, exposure_path in enumerate(exposure_paths):
+        header = fits.getheader(exposure_path)
         exposure_path = Path(exposure_path)
-        # 2. Plate solve the exposure.
-        plate_solve(fits_file_path=exposure_path, use_api=False, use_n_brightest_only=100, do_debug_plot=False,
-                    use_existing_wcs_as_guess=True, logger=logger)
-        # 3. create a soft link of each exposure at the directory of the mosaic -- will be used by swarp.
-        soft_link = mosaic_dir_path / exposure_path.name
-        if not soft_link.exists():
-            os.symlink(exposure_path.resolve(), soft_link)
-        logger.info(f"Created symbolic link for exposure {ii+1}/{len(exposure_paths)}"
-                    f" ({exposure_path.name}) at {soft_link.parent}")
+        ccd_number = extract_ccd_number_from_filename(exposure_path.name)
+        mask = ccd_masks[ccd_number]
+        # 2. background subtract and extract sources
+        skysub_path = mosaic_dir_path / exposure_path.name
+        data = fits.getdata(exposure_path).astype(np.float32)
+        bg = sep.Background(data, mask=(data > 2e4), bh=1024, bw=1024)
+        rms_adu = bg.globalrms
+        data_skysub = data - bg.back()
+        if not skysub_path.exists():
+            fits.writeto(skysub_path, header=header, data=data_skysub)
+        temporary_files.append(skysub_path)
+        sources = Table(sep.extract(data_skysub, thresh=5, minarea=10,
+                                    mask=ccd_masks[ccd_number], err=rms_adu))
+        logger.info(f"Extracted {len(sources)} sources from exposure {ii+1}/{len(exposure_paths)}"
+                    f" ({exposure_path.name})")
+        # 3. Plate solve the exposure.
+        wcs = plate_solve(fits_file_path=skysub_path, sources=sources,
+                          use_api=False, use_n_brightest_only=100, do_debug_plot=False,
+                          use_existing_wcs_as_guess=True, logger=logger)
+        wcs['PL-SLVED'] = 'done'
+        # also update the original fits file, this way it is plate solved.
+        with fits.open(exposure_path, mode='update') as hdul:
+            hdul[0].header.update(wcs)
+            hdul.flush()
 
         # 4. make a noisemap for each exposure.
         weight_path = mosaic_dir_path / f"{exposure_path.stem}.weight.fits"
         if not weight_path.exists():
             data_adu = fits.getdata(exposure_path)
-            header = fits.getheader(exposure_path)
             gain = header['GAIN']
-            ccd_number = extract_ccd_number_from_filename(exposure_path.name)
-            mask = ccd_masks[ccd_number]
-            noisemap_adu = create_noisemap(data_adu=data_adu, gain=gain, mask=mask)
+            noisemap_adu = create_noisemap(data_adu_sky_sub=data_skysub, gain=gain, mask=mask, rms_adu=rms_adu)
             fits.writeto(filename=weight_path, data=1. / noisemap_adu**2, header=header)
             logger.info(f"Wrote weights file: {weight_path}")
         else:
             logger.info(f"Weights file already exists: {weight_path}")
+        temporary_files.append(weight_path)
     # 5. ...call swarp.
     output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.fits"
     weight_output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.weight.fits"
@@ -138,6 +153,9 @@ def make_mosaic(target_name, night_date):
             logger.error(f"Swarp failed to produce the mosaic file! Directory: {mosaic_dir_path}")
     else:
         logger.warning(f"Mosaic file already exists, inconsistency with database?")
+
+    for path in temporary_files:
+        path.unlink()
 
 
 if __name__ == "__main__":

@@ -161,3 +161,6 @@ class Database:
         """, (target_id, night_id))
 
         return [row[0] for row in cursor.fetchall()]
+
+    def close(self):
+        self.conn.close()

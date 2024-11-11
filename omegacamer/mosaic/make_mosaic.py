@@ -3,7 +3,6 @@ import sys
 import logging
 from pathlib import Path
 import numpy as np
-from astropy.stats import sigma_clipped_stats
 from astropy.io import fits
 from astropy.table import Table
 import re
@@ -67,6 +66,14 @@ def make_mosaic(target_name, night_date):
     db_path = work_dir / db_name
     db = Database(db_path)
     logger.info(f"Connected to database at {db_path}.")
+    # 1. gather exposures
+    exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
+    if len(exposure_paths) % 32 != 0:
+        logger.warning(f"Skipping mosaic for target {target_name} on the night of the {night_date}"
+                       f": it seems we do not have CCDs, total number ({len(exposure_paths)} not a multiple of 32."
+                       "Skipping.")
+        # do nothing
+        return
 
     # CCD masks: generated once with ~lenses/prered_pipeline/VST/make_masks.py, masking bad columns
     ccd_masks_dir = Path(config.get('ccd_masks_directory'))
@@ -89,8 +96,7 @@ def make_mosaic(target_name, night_date):
             logger.error(f"Failed to load mask file {mask_file}: {e}")
 
     temporary_files = []
-    # 1. gather exposures
-    exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
+
     logger.info(f"Found {len(exposure_paths)} exposures for target {target_name}, in the night of the {night_date}.")
     for ii, exposure_path in enumerate(exposure_paths):
         header = fits.getheader(exposure_path)
@@ -134,8 +140,7 @@ def make_mosaic(target_name, night_date):
 
         wcs = plate_solve(fits_file_path=skysub_path, sources=sources,
                           use_api=False, use_n_brightest_only=100, do_debug_plot=False,
-                          use_existing_wcs_as_guess=True, logger=logger,
-                          redo_if_done=True)  # TODO remove that last option
+                          use_existing_wcs_as_guess=True, logger=logger)
         wcs['PL-SLVED'] = 'done'
         # also update the original fits file, this way it is plate solved.
         with fits.open(exposure_path, mode='update') as hdul:
@@ -170,4 +175,19 @@ def make_mosaic(target_name, night_date):
 
 
 if __name__ == "__main__":
-    make_mosaic('eRASS1_J0501-0733', '2024-11-06')
+    config_path = os.environ.get('OMEGACAMER_CONFIG')
+    if not config_path:
+        print("Environment variable 'OMEGACAMER_CONFIG' not set.")
+        sys.exit(1)
+
+    config = load_config(config_path)
+
+    work_dir = Path(config.get('mosaic_working_directory'))
+    db_name = config.get('database').get('name')
+    db_path = work_dir / db_name
+    db = Database(db_path)
+    targets_nights = db.get_missing_mosaics()
+    db.close()
+    print(f"{len(targets_nights)} mosaics to make.")
+    for (target, night) in targets_nights:
+        make_mosaic(target, night)

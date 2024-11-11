@@ -117,6 +117,7 @@ def make_mosaic(target_name, night_date):
             logger.info(f"Wrote weights file: {weight_path}")
         else:
             logger.info(f"Weights file already exists: {weight_path}")
+            noisemap_adu = fits.getdata(weight_path)
         temporary_files.append(weight_path)
 
         # 3. Plate solve the exposure.

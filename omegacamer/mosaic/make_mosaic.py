@@ -128,25 +128,27 @@ def make_mosaic(target_name, night_date):
         temporary_files.append(weight_path)
 
         # 3. Plate solve the exposure.
-        sep.set_extract_pixstack(3_000_000)
-        sources = Table(
-            sep.extract(data_skysub, thresh=7.5, minarea=25,
-                        mask=ccd_masks[ccd_number] + (data_skysub > 5e4),
-                        err=noisemap_adu)
-        )
-        sources['xcentroid'] = sources['x']
-        sources['ycentroid'] = sources['y']  # for plate solve below, needs xcentroid and ycentroid
-        logger.info(f"Extracted {len(sources)} sources from exposure {ii+1}/{len(exposure_paths)}"
-                    f" ({exposure_path.name})")
+        if not config.get('already_plate_solved'):
+            # no adverse effect in skipping this in principle.
+            sep.set_extract_pixstack(3_000_000)
+            sources = Table(
+                sep.extract(data_skysub, thresh=7.5, minarea=25,
+                            mask=ccd_masks[ccd_number] + (data_skysub > 5e4),
+                            err=noisemap_adu)
+            )
+            sources['xcentroid'] = sources['x']
+            sources['ycentroid'] = sources['y']  # for plate solve below, needs xcentroid and ycentroid
+            logger.info(f"Extracted {len(sources)} sources from exposure {ii+1}/{len(exposure_paths)}"
+                        f" ({exposure_path.name})")
 
-        wcs = plate_solve(fits_file_path=skysub_path, sources=sources,
-                          use_api=False, use_n_brightest_only=100, do_debug_plot=False,
-                          use_existing_wcs_as_guess=True, logger=logger)
-        wcs['PL-SLVED'] = 'done'
-        # also update the original fits file, this way it is plate solved.
-        with fits.open(exposure_path, mode='update') as hdul:
-            hdul[0].header.update(wcs)
-            hdul.flush()
+            wcs = plate_solve(fits_file_path=skysub_path, sources=sources,
+                              use_api=False, use_n_brightest_only=100, do_debug_plot=False,
+                              use_existing_wcs_as_guess=True, logger=logger)
+            wcs['PL-SLVED'] = 'done'
+            # also update the original fits file, this way it is plate solved.
+            with fits.open(exposure_path, mode='update') as hdul:
+                hdul[0].header.update(wcs)
+                hdul.flush()
 
     # 5. ...call swarp.
     output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.fits"

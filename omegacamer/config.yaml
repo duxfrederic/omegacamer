@@ -20,6 +20,8 @@ lenses:
   - "COOL_J0542-2125"
   - "J0722-3901"
 
+already_plate_solved: true  # 2024-11-26: scamp-ing upstream everything to ensure compatibility.
+
 
 ####################### mosaic
 

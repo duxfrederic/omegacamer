@@ -45,27 +45,12 @@ def extract_ccd_number_from_filename(filename):
 
 
 def make_mosaic(target_name, night_date):
-    config_path = os.environ.get('OMEGACAMER_CONFIG')
-    if not config_path:
-        print("Environment variable 'OMEGACAMER_CONFIG' not set.")
-        sys.exit(1)
-
-    config = load_config(config_path)
-
-    work_dir = Path(config.get('mosaic_working_directory'))
 
     mosaic_dir_path = work_dir / target_name / night_date
     mosaic_dir_path.mkdir(parents=True, exist_ok=True)
 
-    log_level_str = config.get('logging', {}).get('level', 'INFO').upper()
-    log_level = getattr(logging, log_level_str, logging.INFO)
-    log_file = work_dir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
-    logger = setup_logger(log_level, log_file)
     logger.info(f'Making mosaic for target {target_name}, night of the {night_date}')
 
-    db_name = config.get('database').get('name')
-    db_path = work_dir / db_name
-    db = Database(db_path)
     logger.info(f"Connected to database at {db_path}.")
     # 1. gather exposures
     exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
@@ -178,17 +163,29 @@ def make_mosaic(target_name, night_date):
 
 
 if __name__ == "__main__":
+
+    # this file will act as a script, so setup env here
+    # load config
     config_path = os.environ.get('OMEGACAMER_CONFIG')
     if not config_path:
         print("Environment variable 'OMEGACAMER_CONFIG' not set.")
         sys.exit(1)
 
     config = load_config(config_path)
-
+    # work dir ...
     work_dir = Path(config.get('mosaic_working_directory'))
+
+    # database
     db_name = config.get('database').get('name')
     db_path = work_dir / db_name
     db = Database(db_path)
+
+    # setup logger
+    log_level_str = config.get('logging', {}).get('level', 'INFO').upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+    log_file = work_dir / config.get('logging', {}).get('file', 'omegacam_mosaic.log')
+    logger = setup_logger(log_level, log_file)
+
     nights_targets = db.get_missing_mosaics()
     db.close()
     print(f"{len(nights_targets)} mosaics to make.")

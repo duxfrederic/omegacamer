@@ -187,7 +187,8 @@ if __name__ == "__main__":
     logger = setup_logger(log_level, log_file)
 
     nights_targets = db.get_missing_mosaics()
-    db.close()
+
     print(f"{len(nights_targets)} mosaics to make.")
     for (night, target) in nights_targets:
         make_mosaic(target, night)
+    db.close()

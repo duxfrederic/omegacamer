@@ -1,5 +1,6 @@
 import logging
 
+
 def setup_logger(log_level=logging.INFO, log_file='omegacam_mosaic.log'):
     logger = logging.getLogger('OmegaCamMosaic')
     logger.setLevel(log_level)

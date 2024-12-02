@@ -2,6 +2,9 @@ from datetime import datetime, timedelta
 import pytz
 import yaml
 from astropy.time import Time
+import shutil
+from pathlib import Path
+import importlib.resources as pkg_resources
 
 
 def parse_filename(filename):
@@ -23,7 +26,6 @@ def parse_filename(filename):
         return timestamp, mjd, ccd_id
     except Exception as e:
         raise ValueError(f"Filename {filename} does not match expected format.") from e
-
 
 
 def load_config(config_path):
@@ -53,4 +55,22 @@ def determine_night(timestamp_utc, timezone='America/Santiago'):
         night_date = (dt_local - timedelta(days=1)).date()
 
     return night_date.isoformat()
+
+
+def copy_static_configs(destination: Path, files: list):
+    """
+    Copy static configuration files bundled with the package to the destination directory.
+
+    :param destination: Path to the destination directory.
+    :param files: List of file names to copy.
+    """
+    from scamp_runner import static_configs
+
+    for file_name in files:
+        try:
+            src_file = pkg_resources.files(static_configs) / file_name
+            dest_file = destination / file_name
+            shutil.copy(src_file, dest_file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Static configuration file not found: {file_name}")
 

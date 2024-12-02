@@ -42,3 +42,18 @@ logging:
   file: omegacam_mosaic.log
 
 ccd_masks_directory: /projects/astro/cosmograil/PRERED/VST/ccd_masks
+
+# paths to SCAMP and SExtractor binaries
+scamp_bin: "/usr/bin/scamp"
+sex_bin: "/usr/bin/sex"
+
+# where we save the sources (it is expensive to run sextractor, so we will first check there.)
+sources_save_dir: "/tmp/sources"
+# same for headers produced by scamp
+headers_save_dir: "/tmp/headers"
+
+# (temporary) working directory
+tmp_dir: "/tmp/"
+# whether to keep the temporary directory after processing
+keep_tmp: true
+

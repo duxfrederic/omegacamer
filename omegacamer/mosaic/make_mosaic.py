@@ -8,12 +8,11 @@ from astropy.table import Table
 import re
 import sep
 
-from widefield_plate_solver import plate_solve
-
-from logger import setup_logger
-from utils import load_config
-from database import Database
-from swarp_caller import run_swarp
+from omegacamer.mosaic.logger import setup_logger
+from omegacamer.mosaic.utils import load_config
+from omegacamer.mosaic.database import Database
+from omegacamer.mosaic.swarp_caller import run_swarp
+from omegacamer.mosaic.scamp_runner import ScampRunner
 
 
 def create_noisemap(data_adu_sky_sub, gain, rms_adu, mask):
@@ -114,26 +113,8 @@ def make_mosaic(target_name, night_date):
 
         # 3. Plate solve the exposure.
         if not config.get('already_plate_solved'):
-            # no adverse effect in skipping this in principle.
-            sep.set_extract_pixstack(3_000_000)
-            sources = Table(
-                sep.extract(data_skysub, thresh=7.5, minarea=25,
-                            mask=ccd_masks[ccd_number] + (data_skysub > 5e4),
-                            err=noisemap_adu)
-            )
-            sources['xcentroid'] = sources['x']
-            sources['ycentroid'] = sources['y']  # for plate solve below, needs xcentroid and ycentroid
-            logger.info(f"Extracted {len(sources)} sources from exposure {ii+1}/{len(exposure_paths)}"
-                        f" ({exposure_path.name})")
-
-            wcs = plate_solve(fits_file_path=skysub_path, sources=sources,
-                              use_api=False, use_n_brightest_only=100, do_debug_plot=False,
-                              use_existing_wcs_as_guess=True, logger=logger)
-            wcs['PL-SLVED'] = 'done'
-            # also update the original fits file, this way it is plate solved.
-            with fits.open(exposure_path, mode='update') as hdul:
-                hdul[0].header.update(wcs)
-                hdul.flush()
+            scamp_runner = ScampRunner(logger=logger)
+            scamp_runner.run_scamp(skysub_path)
 
     # 5. ...call swarp.
     output_mosaic_file = mosaic_dir_path / f"mosaic_{target_name}_{night_date}.fits"

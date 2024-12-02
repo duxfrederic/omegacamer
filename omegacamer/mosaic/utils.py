@@ -64,7 +64,7 @@ def copy_static_configs(destination: Path, files: list):
     :param destination: Path to the destination directory.
     :param files: List of file names to copy.
     """
-    from scamp_runner import static_configs
+    from omegacamer.mosaic import static_configs
 
     for file_name in files:
         try:

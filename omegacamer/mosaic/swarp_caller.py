@@ -1,6 +1,8 @@
 from subprocess import call
 from pathlib import Path
 
+from omegacamer.mosaic.config import Config()
+
 
 def run_swarp(file_pattern, work_dir, redo, config_file_name, **swarp_config_kwargs):
     """
@@ -12,6 +14,8 @@ def run_swarp(file_pattern, work_dir, redo, config_file_name, **swarp_config_kwa
     :param swarp_config_kwargs: passed to swarp_config_kwargs below.
     :return:
     """
+    config = Config()
+    swarp_path = config.get('swarp_bin')
     work_dir = Path(work_dir)
     config_file_path = work_dir / config_file_name
 
@@ -24,7 +28,7 @@ def run_swarp(file_pattern, work_dir, redo, config_file_name, **swarp_config_kwa
         file_list = list((work_dir.glob(file_pattern)))
     else:
         file_list = [file_pattern]  # just the one
-    call(['swarp'] + file_list + ['-c', config_file_path.name], cwd=str(work_dir))
+    call([swarp_path] + file_list + ['-c', config_file_path.name], cwd=str(work_dir))
 
 
 def write_swarp_config(

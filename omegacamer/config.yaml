@@ -46,6 +46,7 @@ ccd_masks_directory: /projects/astro/cosmograil/PRERED/VST/ccd_masks
 # paths to SCAMP and SExtractor binaries
 scamp_bin: "/usr/bin/scamp"
 sex_bin: "/usr/bin/sex"
+swarp_bin: "/usr/bin/swarp"
 
 # where we save the sources (it is expensive to run sextractor, so we will first check there.)
 sources_save_dir: "/tmp/sources"

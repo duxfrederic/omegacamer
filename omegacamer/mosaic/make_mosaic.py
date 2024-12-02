@@ -59,6 +59,10 @@ def make_mosaic(target_name, night_date):
                        "Skipping.")
         # do nothing
         return
+    elif len(exposure_paths) == 0:
+        logger.warning(f"Skipping mosaic for target {target_name} on the night of the {night_date} -- no data.")
+        # do nothing
+        return
 
     # CCD masks: generated once with ~lenses/prered_pipeline/VST/make_masks.py, masking bad columns
     ccd_masks_dir = Path(config.get('ccd_masks_directory'))

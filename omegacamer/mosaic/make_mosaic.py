@@ -55,7 +55,7 @@ def make_mosaic(target_name, night_date):
     exposure_paths = db.get_exposures_for_mosaic(target_name=target_name, night_date=night_date)
     if len(exposure_paths) % 32 != 0:
         logger.warning(f"Skipping mosaic for target {target_name} on the night of the {night_date}"
-                       f": it seems we do not have CCDs, total number ({len(exposure_paths)} not a multiple of 32."
+                       f": it seems we do not have CCDs, total number ({len(exposure_paths)} not a multiple of 32. "
                        "Skipping.")
         # do nothing
         return

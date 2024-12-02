@@ -47,7 +47,7 @@ class ScampRunner:
         # we'll also save the sources!
         catalog_path = temp_dir / f"{file_path.stem}.cat"
         catalog_path_save = self.sources_save_dir / catalog_path.name
-
+        skip_copy = False
         try:
             copy_static_configs(temp_dir, sex_config_files + scamp_config_files)
             if out_header.exists():
@@ -55,6 +55,7 @@ class ScampRunner:
             elif out_header_save.exists():
                 self.logger.info(f'Using existing header at {out_header_save}')
                 copy2(out_header_save, out_header)
+                skip_copy = True
 
             else:
                 self.logger.info(f'Running sextractor on {temp_soft_link}')
@@ -114,8 +115,9 @@ class ScampRunner:
             success = True
 
             # at this point we're satisfied and copy the products
-            copy2(out_header, out_header_save)
-            copy2(catalog_path, catalog_path_save)
+            if not skip_copy:
+                copy2(out_header, out_header_save)
+                copy2(catalog_path, catalog_path_save)
 
         except subprocess.CalledProcessError as E:
             self.logger.error(f'Error running sex or scamp: {temp_soft_link}; error {E}.')

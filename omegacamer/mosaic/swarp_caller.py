@@ -1,7 +1,7 @@
 from subprocess import call
 from pathlib import Path
 
-from omegacamer.mosaic.config import Config()
+from omegacamer.mosaic.config import Config
 
 
 def run_swarp(file_pattern, work_dir, redo, config_file_name, **swarp_config_kwargs):

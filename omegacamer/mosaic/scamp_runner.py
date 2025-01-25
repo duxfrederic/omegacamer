@@ -69,7 +69,7 @@ class ScampRunner:
                 )
                 # ok; now if very few sources, we just skip as it makes scamp hang indefinitely.
                 # read the catalogue file
-                with open(catalog_path, 'r') as f:
+                with open(catalog_path, 'r', errors='replace') as f:
                     cat_contents = f.read()
                 rematch = re.search(r"SEXNFIN\s*=\s*(\d+)", cat_contents)
                 if rematch:

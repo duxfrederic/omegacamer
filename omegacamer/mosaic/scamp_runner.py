@@ -1,4 +1,5 @@
 import subprocess
+import re
 from pathlib import Path
 from astropy.wcs import WCS
 from astropy.io import fits
@@ -66,6 +67,25 @@ class ScampRunner:
                     check=True,
                     cwd=str(temp_dir)
                 )
+                # ok; now if very few sources, we just skip as it makes scamp hang indefinitely.
+                # read the catalogue file
+                with open(catalog_path, 'r') as f:
+                    cat_contents = f.read()
+                rematch = re.search(r"SEXNFIN\s*=\s*(\d+)", cat_contents)
+                if rematch:
+                    try:
+                        sexnfin_value = int(rematch.group(1))
+                        if sexnfin_value < 3:
+                            self.logger.warning(f"Too few detected sources in {catalog_path}")
+                            raise NoHeaderFileProducedError
+                    except ValueError as err:
+                        self.logger.warning(f"Could not parse # of sources in {catalog_path}, corrupt? Exception: {err}")
+                        raise NoHeaderFileProducedError
+                else:
+                    self.logger.warning(f"No indication of # of sources in {catalog_path}, corrupt?")
+                    raise NoHeaderFileProducedError
+
+                # if the above went through, we are good to go
                 self.logger.info(f'Running scamp on {temp_soft_link}; catalogue {catalog_path}')
                 subprocess.run(
                     [self.scamp_bin, str(catalog_path), "-c", str(temp_dir / "default.scamp")],

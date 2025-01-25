@@ -75,6 +75,7 @@ class ScampRunner:
                 if rematch:
                     try:
                         sexnfin_value = int(rematch.group(1))
+                        self.logger.info(f"{sexnfin_value} sources in {catalog_path}")
                         if sexnfin_value < 3:
                             self.logger.warning(f"Too few detected sources in {catalog_path}")
                             raise NoHeaderFileProducedError

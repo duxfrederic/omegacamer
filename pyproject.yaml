@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=67.6.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omegacamer"
+version = "0.0.1"
+authors = [{ name = "Frédéric Dux", email = "duxfrederic@gmail.com" }]
+description = "Astropy / astroquery / numpy based package to download and reduce VST/OmegaCAM astronomical images."
+readme = "README.md"
+keywords = ["astronomy", "pipeline"]
+classifiers = [] 
+dependencies = [
+    "pyyaml",
+    "matplotlib",
+    "astropy",
+    "numpy",
+    "scipy",
+    "pandas",
+    "astroquery",
+    "pytest",
+    "h5py",
+]
+
+[project.urls]
+repository = "https://github.com/duxfrederic/omegacamer"
+
+[project.optional-dependencies]
+test = [
+    "pytest"
+]
+
+[project.scripts]
+#lc_init = "lightcurver.scripts.initialize:initialize"
+
+[tool.setuptools]
+packages.find = {where = ["."], include = ["lightcurver*"]}
+package-dir = {"" = "."}
+package-data = {"omegacamer" = ["mosaic/config.yaml", "prered/config.yaml"]}

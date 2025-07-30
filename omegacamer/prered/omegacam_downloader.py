@@ -10,6 +10,7 @@ with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
 working_directory = config['working_directory']
+Path(working_directory).mkdir(exist_ok=True, parents=True)
 credentials = config['credentials']
 prog_id = credentials['program_id']
 user = credentials['user']
@@ -102,7 +103,7 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
 
 
 if __name__ == "__main__":
-    db_manager = DatabaseManager(config_path='config.yaml')
+    db_manager_instance = DatabaseManager(config_path='config.yaml')
 
     try:
         start_date = '2024 10 24'
@@ -110,6 +111,6 @@ if __name__ == "__main__":
 
         out_file = get_omegacam_observation_records(working_directory, start_date, end_date, prog_id)
 
-        download_omegacam_observations(out_file, db_manager)
+        download_omegacam_observations(out_file, db_manager_instance)
     finally:
-        db_manager.close()
+        db_manager_instance.close()

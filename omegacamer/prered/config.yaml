@@ -1,5 +1,5 @@
 
-working_directory: "/tmp/"
+working_directory: "/tmp/omegacam_work_dir"
 
 credentials:
   user: "fredericdux"
@@ -14,11 +14,9 @@ report_path: "/www/people/dux/public/VST_p3/reduction_status.html"
 # directory containing the reduced data
 reduced_data_dir: "/projects/astro/cosmograil/PRERED/VST/reduced/"
 
-# list of lenses to consider
-lenses:
+# list of objects to consider
+objects:
   - "eRASS1_J0501-0733"
-  - "COOL_J0542-2125"
-  - "J0722-3901"
 
 already_plate_solved: true  # 2024-11-26: scamp-ing upstream everything to ensure compatibility.
 
@@ -54,7 +52,7 @@ sources_save_dir: "/tmp/sources"
 headers_save_dir: "/tmp/headers"
 
 # (temporary) working directory
-tmp_dir: "/tmp/"
+tmp_dir: "/tmp/tmp_omegacam"
 # whether to keep the temporary directory after processing
 keep_tmp: true
 

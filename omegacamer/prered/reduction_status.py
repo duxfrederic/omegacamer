@@ -58,36 +58,36 @@ def query_eso_archive(config: dict) -> pd.DataFrame:
 
 def load_reduced_data(config: dict) -> dict:
     """
-    Load reduced data directories for each lens.
-    Returns a dictionary with lens names as keys and Path objects as values.
+    Load reduced data directories for each object.
+    Returns a dictionary with object names as keys and Path objects as values.
     """
     reduced_data_dir = Path(config['reduced_data_dir'])
-    lenses = config['lenses']
+    objects = config['objects']
     reduced_dirs = {}
-    for lens in lenses:
-        lens_path = reduced_data_dir / f"{lens}_wide_field"
-        if not lens_path.exists():
-            logger.warning(f"Reduced data directory for lens '{lens}' does not exist at {lens_path}.")
-        reduced_dirs[lens] = lens_path
+    for obj in objects:
+        object_path = reduced_data_dir / f"{obj}_wide_field"
+        if not object_path.exists():
+            logger.warning(f"Reduced data directory for object '{obj}' does not exist at {object_path}.")
+        reduced_dirs[obj] = object_path
     return reduced_dirs
 
-def check_reduction_status(obs_df: pd.DataFrame, reduced_dirs: dict, lenses: list) -> dict:
+def check_reduction_status(obs_df: pd.DataFrame, reduced_dirs: dict, objects: list) -> dict:
     """
     Check which observations have been reduced or are pending.
-    Returns a dictionary with lens names as keys and lists of reduced and pending dp_ids.
+    Returns a dictionary with object names as keys and lists of reduced and pending dp_ids.
     """
     status = {}
-    for lens in lenses:
-        logger.info(f"Processing lens: {lens}")
-        archive_lens_name = lens.replace('_', ' ').upper()
+    for obj in objects:
+        logger.info(f"Processing object: {obj}")
+        archive_object_name = obj.replace('_', ' ').upper()
          
-        lens_obs = obs_df[obs_df['OBJECT'] == archive_lens_name]
-        dp_ids = lens_obs['Dataset ID'].unique()
+        object_obs = obs_df[obs_df['OBJECT'] == archive_object_name]
+        dp_ids = object_obs['Dataset ID'].unique()
         reduced = []
         pending = []
-        lens_dir = reduced_dirs.get(lens, None)
-        if lens_dir and lens_dir.exists():
-            fits_files = list(lens_dir.glob('*.fits'))
+        object_dir = reduced_dirs.get(obj, None)
+        if object_dir and object_dir.exists():
+            fits_files = list(object_dir.glob('*.fits'))
             fits_filenames = [f.name for f in fits_files]
             for dp_id in dp_ids:
                 if any(dp_id in fname for fname in fits_filenames):
@@ -95,9 +95,9 @@ def check_reduction_status(obs_df: pd.DataFrame, reduced_dirs: dict, lenses: lis
                 else:
                     pending.append(dp_id)
         else:
-            logger.warning(f"Lens directory for '{lens}' does not exist. All observations are pending.")
+            logger.warning(f"object directory for '{obj}' does not exist. All observations are pending.")
             pending = list(dp_ids)
-        status[lens] = {
+        status[obj] = {
             'reduced': reduced,
             'pending': pending
         }
@@ -129,8 +129,8 @@ def generate_html_report(status: dict, report_path: Path):
     <body>
         <h1>Reduction status report</h1>
         <p>Last generation: UTC {{ now() }} </p>
-        {% for lens, data in status.items() %}
-            <h2>Lens: {{ lens }}</h2>
+        {% for object, data in status.items() %}
+            <h2>object: {{ object }}</h2>
             <table>
                 <tr>
                     <th>Category</th>
@@ -201,7 +201,7 @@ def main():
     reduced_dirs = load_reduced_data(config)
     
     # Check reduction status
-    status = check_reduction_status(obs_df, reduced_dirs, config['lenses'])
+    status = check_reduction_status(obs_df, reduced_dirs, config['objects'])
     
     # Generate HTML report
     report_path = Path(config['report_path'])

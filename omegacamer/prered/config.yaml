@@ -1,5 +1,5 @@
 
-working_directory: "/tmp/omegacam_work_dir"
+working_directory: "/scratch/omegacam_work_dir"
 
 credentials:
   user: "fredericdux"
@@ -52,7 +52,7 @@ sources_save_dir: "/tmp/sources"
 headers_save_dir: "/tmp/headers"
 
 # (temporary) working directory
-tmp_dir: "/tmp/tmp_omegacam"
+tmp_dir: "/scratch/tmp_omegacam"
 # whether to keep the temporary directory after processing
 keep_tmp: true
 

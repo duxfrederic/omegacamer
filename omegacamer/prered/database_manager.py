@@ -289,16 +289,18 @@ class DatabaseManager:
         )
         return cur.fetchall()
 
-    def find_flats(self, *, filter_: str, binning: str, readout_mode: str, mjd_window: float, mjd_center: float) -> Sequence[sqlite3.Row]:
+    def find_flats(self, *, filter_: str, binning: str, readout_mode: str, type_: str,
+                   mjd_window: float, mjd_center: float) -> Sequence[sqlite3.Row]:
         cur = self.conn.cursor()
         cur.execute(
             """
             SELECT * FROM flats
-             WHERE filter = :flt AND binning = :bin AND readout_mode = :ro
+             WHERE filter = :flt AND binning = :bin AND readout_mode = :ro AND type = :type
                AND ABS(mjd_obs - :mjd) <= :w
              ORDER BY ABS(mjd_obs - :mjd);
             """,
-            {"flt": filter_, "bin": binning, "ro": readout_mode, "mjd": mjd_center, "w": mjd_window},
+            {"flt": filter_, "bin": binning, "ro": readout_mode, "type": type_,
+                       "mjd": mjd_center, "w": mjd_window},
         )
         return cur.fetchall()
 

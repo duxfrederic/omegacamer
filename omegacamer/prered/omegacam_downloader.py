@@ -2,7 +2,9 @@ from pathlib import Path
 import pandas as pd
 import requests
 import yaml
+from astropy.io import fits
 from astroquery.eso import EsoClass
+
 from database_manager import DatabaseManager
 
 # load config
@@ -68,6 +70,20 @@ def get_omegacam_observation_records(download_directory, start_date_str, end_dat
     return out_file
 
 
+def get_information_from_header(header):
+    """
+    Gets information. object? filter binning? etc.
+    """
+    obj = header['OBJECT']
+    mjd_obs = float(header['MJD-OBS'])
+    filter_ = header['HIERARCH ESO INS FILT1 NAME']
+    binning = 'x'.join([str(header[f'HIERARCH ESO DET WIN1 BIN{d}']) for d in 'XY'])  # e.g. 1x1, or 2x2, or 2x1, etc.
+    readout_mode = header['HIERARCH ESO DET READ MODE']
+    exptime = float(header['exptime'])
+    return {'object_': obj, 'mjd_obs': mjd_obs, 'filter_': filter_, 'binning': binning, 'readout_mode': readout_mode,
+            'exptime': exptime}
+
+
 def download_omegacam_observations(observation_records_csv_path, db_manager):
     """
     Processes the observation records and updates the database.
@@ -80,26 +96,65 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
     to_download = []
     for _, record in obs_records.iterrows():
         dp_id = record['Dataset ID']
-        if db_manager.record_exists(dp_id):
-            print(f"Dataset ID {dp_id} already downloaded. Skipping.")
+        if db_manager.raw_science_exists(dp_id):
+            print(f"Science file with ID {dp_id} already downloaded. Skipping.")
             continue
         to_download.append(dp_id)
 
-    # get associated calibrations:
-    calib_files = esoclass.get_associated_files(to_download)
-    downloaded_paths = esoclass.retrieve_data(calib_files, destination=working_directory, with_calib=None,
-                                              unzip=True)
+    if not to_download:
+        # then calibrations were already downloaded anyway per order of operations below.
+        # we simply do nothing.
+        return
 
+    # get associated calibrations:
+    calib_dp_ids = esoclass.get_associated_files(to_download)
+
+    # download and register each relevant calibration file
+    for calib_dp_id in calib_dp_ids:
+        if calib_dp_id.startswith('M.'):  # combined calibration or old star catalogue, we do not need these.
+            continue
+
+        if (
+                db_manager.flat_exists(calib_dp_id)
+                or db_manager.bias_exists(calib_dp_id)
+                or db_manager.unusedcalib_exists(calib_dp_id)
+            ):
+            print(f"Calibration with dataset ID {calib_dp_id} already downloaded. Skipping.")
+            continue
+        calib_path = esoclass.retrieve_data(calib_dp_id, destination=working_directory, with_calib=None,
+                                             unzip=False, continuation=False)
+        # calib_path = '/scratch/omegacam_work_dir/OMEGA.2024-10-26T08:54:58.659.fits.fz'
+        header = fits.getheader(calib_path)  # first card header has the information we need on omegacam
+        header_info = get_information_from_header(header)
+        if header_info['object_'] == 'FLAT,SKY' or header_info['object_'] == 'FLAT,DOME':
+            flat_type = header_info['object_'].split(',')[1]
+            del header_info['exptime']
+            del header_info['object_']
+            db_manager.register_flat(calib_id=calib_dp_id, **header_info, path=calib_path,
+                                     type_=flat_type)
+        elif header_info['object_'] == 'BIAS':
+            del header_info['filter_']
+            del header_info['exptime']
+            del header_info['object_']
+            db_manager.register_bias(calib_id=calib_dp_id, **header_info, path=calib_path)
+        else:
+            # not a calibration we are interested in
+            db_manager.register_unused_calib(calib_id=calib_dp_id, type_=header_info['object_'])
+            print(f"Calibration {calib_dp_id} has uncaught type: {header_info['object_']}.")
+            continue
+        print(f"Downloaded calibration {calib_dp_id} to {calib_path}")
+
+    # now do the same with science files.
     for raw_science_dp_id in to_download:
+        if db_manager.raw_science_exists(raw_science_dp_id):
+            print(f"Science file with dataset ID {raw_science_dp_id} already downloaded. Skipping.")
+            continue
         file_path = esoclass.retrieve_data(raw_science_dp_id, destination=working_directory, with_calib=None,
-                                           unzip=True)
-        print(f"Downloaded {raw_science_dp_id} to {file_path}")
-        record = obs_records[obs_records['Dataset ID'] == raw_science_dp_id].iloc[0]
-        record_dict = record.to_dict()
-        record_dict['save_path'] = file_path
-        added = db_manager.add_record(record_dict, working_directory)
-        if added:
-            print(f"Recorded download of {raw_science_dp_id} in the database.")
+                                           unzip=False, continuation=False)
+        header = fits.getheader(file_path)  # first card header has the information we need on omegacam
+        header_info = get_information_from_header(header)
+        db_manager.register_raw_science(dp_id=raw_science_dp_id, **header_info, path=file_path)
+        print(f"Downloaded science file {raw_science_dp_id} (object {header_info['object_']}) to {file_path}")
 
 
 if __name__ == "__main__":

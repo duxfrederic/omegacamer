@@ -34,14 +34,14 @@ class DatabaseManager:
         self.working_directory = Path(cfg["working_directory"]).expanduser().resolve()
         self.working_directory.mkdir(parents=True, exist_ok=True)
         self.db_path = self.working_directory / "book_keeping.sqlite3"
-
+        existed = self.db_path.exists()
         self.conn = sqlite3.connect(self.db_path)
-        # rows come back as dict‑like objects – nicer to work with
+        # rows come back as dict‑like objects, nicer to work with
         self.conn.row_factory = sqlite3.Row
         # enforce referential integrity
         self.conn.execute("PRAGMA foreign_keys = ON;")
 
-        if not self.db_path.exists():
+        if not existed:
             self._create_schema()
         else:
             self._migrate_if_necessary()
@@ -50,7 +50,7 @@ class DatabaseManager:
         cur = self.conn.cursor()
         row = cur.execute("SELECT value FROM meta WHERE key = 'schema_version';").fetchone()
         if row is None:
-            raise RuntimeError("Database missing schema_version – cannot determine upgrade path.")
+            raise RuntimeError("Database missing schema_version, cannot determine upgrade path.")
         version = int(row["value"])
         if version != self.SCHEMA_VERSION:
             raise NotImplementedError(
@@ -63,7 +63,7 @@ class DatabaseManager:
         # raw science frames
         cur.execute(
             """
-            CREATE TABLE raw_science_files IF NOT EXISTS (
+            CREATE TABLE raw_science_files (
                 dp_id           TEXT PRIMARY KEY,
                 object          TEXT,
                 mjd_obs         REAL,
@@ -117,7 +117,7 @@ class DatabaseManager:
             """
             CREATE TABLE unused_calibrations (
                 calib_id        TEXT PRIMARY KEY,
-                type            TEXT NON NULL,
+                type            TEXT NOT NULL
             );
             """
         )

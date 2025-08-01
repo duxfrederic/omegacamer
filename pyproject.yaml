@@ -20,6 +20,7 @@ dependencies = [
     "astroquery",
     "pytest",
     "h5py",
+    "tqdm",
 ]
 
 [project.urls]
@@ -31,9 +32,10 @@ test = [
 ]
 
 [project.scripts]
-#lc_init = "lightcurver.scripts.initialize:initialize"
+#
 
 [tool.setuptools]
-packages.find = {where = ["."], include = ["lightcurver*"]}
+packages.find = {where = ["."], include = ["omegacamer*"]}
 package-dir = {"" = "."}
-package-data = {"omegacamer" = ["mosaic/config.yaml", "prered/config.yaml"]}
+package-data = {"omegacamer" = ["config.yaml", "prered/ccd_overscan.yaml]}
+

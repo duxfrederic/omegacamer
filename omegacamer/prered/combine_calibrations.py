@@ -1,7 +1,7 @@
 from typing import Iterable
 import numpy as np
 from astropy.io import fits
-from datetime import datetime, timezone
+from omegacamer.prered.utils import crop_omegacam_overscan
 
 
 def build_combined_bias(
@@ -18,7 +18,7 @@ def build_combined_bias(
     Returns the combined_biases.id (existing or new).
     """
     # early-exit if already exists
-    output_path = db.working_directory / output_rel
+    output_path = output_rel
     avg_mjd = np.mean([db.conn.execute("SELECT mjd_obs FROM biases WHERE calib_id=?;",
                                        (bid,)).fetchone()[0] for bid in bias_ids])
     if db.combined_bias_exists(binning=binning, readout_mode=readout_mode,
@@ -52,7 +52,9 @@ def build_combined_bias(
         stack = []
         for p in paths:
             with fits.open(p, memmap=True) as hdul:
-                stack.append(hdul[ccd].data.astype("float32"))
+                stack.append(
+                    crop_omegacam_overscan(hdul[ccd].data.astype("float32"), ccd_number=ccd)
+                )
         median = np.median(stack, axis=0)
         with fits.open(output_path, mode="update", memmap=False) as h_out:
             h_out[ccd].data = median.astype("float32")
@@ -90,6 +92,20 @@ def build_combined_flat(
       4. renormalise final product so global median == 1
     Registers output in DB and returns combined_flats.id.
     """
+    # check if we can exit early (already exists)
+    mjds = [db.conn.execute(
+        "SELECT mjd_obs FROM flats WHERE calib_id=?;", (fid,)
+    ).fetchone()[0] for fid in flat_ids]
+    avg_mjd = float(np.mean(mjds))
+    existing = db.conn.execute(
+        "SELECT id FROM combined_flats "
+        "WHERE filter=? AND binning=? AND readout_mode=? AND average_mjd_obs=?;",
+        (filter_, binning, readout_mode, avg_mjd)
+    ).fetchone()
+    if existing:
+        return existing[0]
+
+
     output_path = db.working_directory / output_rel
 
     # fetch bias cube lazily (memmap ccds one by one)
@@ -99,6 +115,9 @@ def build_combined_flat(
             "SELECT file_path FROM combined_biases WHERE id=?;",
             (combined_bias_id,)
         ).fetchone()[0]
+
+    # exit early if combined flat exists
+
 
     first = db.conn.execute(
         "SELECT file_path FROM flats WHERE calib_id=?;", (next(iter(flat_ids)),)
@@ -125,19 +144,19 @@ def build_combined_flat(
         medians = []
         with fits.open(p, memmap=True) as hdul_f:
             for ccd in range(1, n_ccd + 1):
-                frame = hdul_f[ccd].data.astype("float32")
+                frame = crop_omegacam_overscan(hdul_f[ccd].data.astype("float32"), ccd_number=ccd)
                 if bias_path:
                     with fits.open(bias_path, memmap=True) as hdul_b:
                         frame -= hdul_b[ccd].data.astype("float32")
                 medians.append(np.median(frame))
-        scales.append(np.median(medians))  # global median ≈ median of CCD medians
+        scales.append(np.median(medians))  # global median ~ median of CCD medians
 
     # now actually stack
     for ccd in range(1, n_ccd + 1):
         stack = []
         for p, scale in zip(paths, scales):
             with fits.open(p, memmap=True) as hdul_f:
-                frame = hdul_f[ccd].data.astype("float32")
+                frame = crop_omegacam_overscan(hdul_f[ccd].data.astype("float32"), ccd_number=ccd)
                 if bias_path:
                     with fits.open(bias_path, memmap=True) as hdul_b:
                         frame -= hdul_b[ccd].data.astype("float32")
@@ -156,8 +175,6 @@ def build_combined_flat(
             hdul[ccd].data /= g_med
 
     # DB registration
-    mjds = [db.conn.execute("SELECT mjd_obs FROM flats WHERE calib_id=?;",
-                            (fid,)).fetchone()[0] for fid in flat_ids]
     combined_id = db.register_combined_flat(
         filter_=filter_,
         binning=binning,
@@ -165,7 +182,7 @@ def build_combined_flat(
         combined_bias_id=combined_bias_id,
         member_calib_ids=flat_ids,
         output_path=output_path,
-        avg_mjd=float(np.mean(mjds)),
+        avg_mjd=float(avg_mjd),
         scatter_mjd=float(np.std(mjds)),
     )
     return combined_id

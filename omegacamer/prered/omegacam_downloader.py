@@ -4,6 +4,7 @@ import requests
 import yaml
 from astropy.io import fits
 from astroquery.eso import EsoClass
+import os
 
 from database_manager import DatabaseManager
 
@@ -55,11 +56,11 @@ def download_file(url, save_path):
             file.write(chunk)
 
 
-def get_omegacam_observation_records(download_directory, start_date_str, end_date_str, program_id):
+def get_omegacam_observation_records(start_date_str, end_date_str, program_id):
     """
     Downloads the observation records CSV if it doesn't already exist.
     """
-    download_dir = Path(download_directory)
+    download_dir = Path('obs_records')
     out_file = download_dir / f"records_{start_date_str.replace(' ', '-')}_{end_date_str.replace(' ', '-')}.csv"
     if out_file.exists():
         return out_file
@@ -110,6 +111,8 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
     calib_dp_ids = esoclass.get_associated_files(to_download)
 
     # download and register each relevant calibration file
+    calib_dest_path = Path('raw/calib')
+    calib_dest_path.mkdir(exist_ok=True, parents=True)
     for calib_dp_id in calib_dp_ids:
         if calib_dp_id.startswith('M.'):  # combined calibration or old star catalogue, we do not need these.
             continue
@@ -121,9 +124,11 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
             ):
             print(f"Calibration with dataset ID {calib_dp_id} already downloaded. Skipping.")
             continue
-        calib_path = esoclass.retrieve_data(calib_dp_id, destination=working_directory, with_calib=None,
+
+        calib_path = esoclass.retrieve_data(calib_dp_id, destination=calib_dest_path, with_calib=None,
                                              unzip=False, continuation=False)
-        # calib_path = '/scratch/omegacam_work_dir/OMEGA.2024-10-26T08:54:58.659.fits.fz'
+        # path given by esoclass insists on being absolute, we want it relative.
+        calib_path = Path(calib_path).relative_to(working_directory)
         header = fits.getheader(calib_path)  # first card header has the information we need on omegacam
         header_info = get_information_from_header(header)
         if header_info['object_'] == 'FLAT,SKY' or header_info['object_'] == 'FLAT,DOME':
@@ -132,25 +137,31 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
             del header_info['object_']
             db_manager.register_flat(calib_id=calib_dp_id, **header_info, path=calib_path,
                                      type_=flat_type)
+            print(f"Downloaded {flat_type} {calib_dp_id} to {calib_path}")
         elif header_info['object_'] == 'BIAS':
             del header_info['filter_']
             del header_info['exptime']
             del header_info['object_']
             db_manager.register_bias(calib_id=calib_dp_id, **header_info, path=calib_path)
+            print(f"Downloaded BIAS {calib_dp_id} to {calib_path}")
         else:
             # not a calibration we are interested in
             db_manager.register_unused_calib(calib_id=calib_dp_id, type_=header_info['object_'])
             print(f"Calibration {calib_dp_id} has uncaught type: {header_info['object_']}.")
             continue
-        print(f"Downloaded calibration {calib_dp_id} to {calib_path}")
+
 
     # now do the same with science files.
+    science_dest_path = Path('raw/science')
+    science_dest_path.mkdir(exist_ok=True, parents=True)
     for raw_science_dp_id in to_download:
         if db_manager.raw_science_exists(raw_science_dp_id):
             print(f"Science file with dataset ID {raw_science_dp_id} already downloaded. Skipping.")
             continue
-        file_path = esoclass.retrieve_data(raw_science_dp_id, destination=working_directory, with_calib=None,
+        file_path = esoclass.retrieve_data(raw_science_dp_id, destination=science_dest_path, with_calib=None,
                                            unzip=False, continuation=False)
+        # file_path insists on being absolute, we want it relative.
+        file_path = Path(file_path).relative_to(working_directory)
         header = fits.getheader(file_path)  # first card header has the information we need on omegacam
         header_info = get_information_from_header(header)
         db_manager.register_raw_science(dp_id=raw_science_dp_id, **header_info, path=file_path)
@@ -158,13 +169,14 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
 
 
 if __name__ == "__main__":
+    os.chdir(working_directory)
     db_manager_instance = DatabaseManager(config_path='config.yaml')
 
     try:
         start_date = '2024 10 24'
         end_date = '2024 10 25'
 
-        out_file = get_omegacam_observation_records(working_directory, start_date, end_date, prog_id)
+        out_file = get_omegacam_observation_records(start_date, end_date, prog_id)
 
         download_omegacam_observations(out_file, db_manager_instance)
     finally:

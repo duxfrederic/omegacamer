@@ -4,7 +4,7 @@ from astropy.io import fits
 from database import Database
 from logger import setup_logger
 
-from utils import load_config, parse_filename, determine_night
+from omegacamer.mosaic.utils import load_config, parse_filename, determine_night
 
 
 def main():

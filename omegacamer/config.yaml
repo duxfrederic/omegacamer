@@ -6,6 +6,9 @@ credentials:
   program_id: "114.27U3.001"
 
 
+
+reduced_format: perccd
+
 ####################### reduction report
 # path to save the HTML report
 report_path: "/www/people/dux/public/VST_p3/reduction_status.html"
@@ -16,21 +19,22 @@ reduced_data_dir: "/projects/astro/cosmograil/PRERED/VST/reduced/"
 
 # list of objects to consider
 objects:
-  - "eRASS1_J0501-0733"
+  - "eRASS1 J0501-0733"
 
-already_plate_solved: true  # 2024-11-26: scamp-ing upstream everything to ensure compatibility.
+already_plate_solved: false  # 2024-11-26: scamp-ing upstream everything to ensure compatibility.
 
 
 ####################### mosaic
 
 discovery_file_pattern: "OMEGA.*FCS.fits"
 
-mosaic_working_directory: /projects/astro/cosmograil/PRERED/VST/mosaic
+mosaic_working_directory: /scratch/omegacam_work_dir/mosaic/ #/projects/astro/cosmograil/PRERED/VST/mosaic
 
 directories:
-  - /projects/astro/cosmograil/PRERED/VST/reduced/J0722-3901_wide_field
-  - /projects/astro/cosmograil/PRERED/VST/reduced/COOL_J0542-2125_wide_field
-  - /projects/astro/cosmograil/PRERED/VST/reduced/eRASS1_J0501-0733_wide_field
+  - /scratch/omegacam_work_dir/reduced/eRASS1_J0501-0733
+#  - /projects/astro/cosmograil/PRERED/VST/reduced/J0722-3901_wide_field
+#  - /projects/astro/cosmograil/PRERED/VST/reduced/COOL_J0542-2125_wide_field
+#  - /projects/astro/cosmograil/PRERED/VST/reduced/eRASS1_J0501-0733_wide_field
 
 database:
   name: omegacam_data.db  # will be at mosaic_working_directory
@@ -39,7 +43,7 @@ logging:
   level: INFO
   file: omegacam_mosaic.log
 
-ccd_masks_directory: /projects/astro/cosmograil/PRERED/VST/ccd_masks
+ccd_masks_directory: /scratch/omegacam_work_dir/ccd_masks #/projects/astro/cosmograil/PRERED/VST/ccd_masks
 
 # paths to SCAMP and SExtractor binaries
 scamp_bin: "/usr/bin/scamp"

@@ -12,8 +12,8 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def md5(path: str, blocksize: int = 2 ** 20) -> str:
-    """Cheap hash of the saved files."""
+def md5(path: str | Path, blocksize: int = 2 ** 20) -> str:
+    """hash of saved files, could come handy one day"""
     h = hashlib.md5()
     with open(path, "rb") as fh:
         for chunk in iter(lambda: fh.read(blocksize), b""):
@@ -23,8 +23,22 @@ def md5(path: str, blocksize: int = 2 ** 20) -> str:
 
 
 class DatabaseManager:
-    """Book‑keeping for our OmegaCAM pipeline."""
+    """Book‑keeping.
+    We track
+       - raw science files
+       - raw bias files
+       - raw flat files
+       - unused calibrations so we don't download them again and again
+       - combined calibrations
+       - what raw calibration files went into what combined calibrations
+       - science products, with what combined calibrations went into which product.
 
+    This structure allows incremental processing (we check against database before doing work,
+    if desired processed calibrations or science producs already exist, early exit).
+
+    When it comes to file paths, we track everything RELATIVE to the working directory.
+    Hopefully this will allow portability in the future.
+    """
     SCHEMA_VERSION = 1
 
     def __init__(self, config_path: str | Path = "config.yaml") -> None:
@@ -38,7 +52,7 @@ class DatabaseManager:
         self.conn = sqlite3.connect(self.db_path)
         # rows come back as dict‑like objects, nicer to work with
         self.conn.row_factory = sqlite3.Row
-        # enforce referential integrity
+        # referential integrity
         self.conn.execute("PRAGMA foreign_keys = ON;")
 
         if not existed:
@@ -192,7 +206,7 @@ class DatabaseManager:
             """
         )
 
-        # misc
+        # misc, in the future we can upgrade the schema if processing ends up requiring it.
         cur.execute(
             """
             CREATE TABLE meta (
@@ -272,7 +286,6 @@ class DatabaseManager:
 
 
     # lookup helpers
-
     def find_biases(self, *, binning: str, readout_mode: str, mjd_window: float, mjd_center: float) -> Sequence[sqlite3.Row]:
         """Return bias frames matching *binning* & *readout_mode* whose mjd_obs is within
         ±*mjd_window* days of *mjd_center*.
@@ -421,7 +434,7 @@ class DatabaseManager:
         self.conn.commit()
         
         
-    # checkers
+    # checkers for early exits
     def raw_science_exists(self, dp_id: str) -> bool:
         row = self.conn.execute(
             "SELECT 1 FROM raw_science_files WHERE dp_id = ? LIMIT 1;",

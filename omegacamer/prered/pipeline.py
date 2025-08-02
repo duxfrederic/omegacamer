@@ -27,8 +27,8 @@ reduced/<night_id>/        # reduced science frames (MEF or CCD‑splits)
 
 Notes
 -----
-* We assume the process is started with the current **working directory set
-  to `config['working_directory']`** so that relative paths resolve
+* We assume the process is started with the current working directory set
+  to `config['working_directory']` so that relative paths resolve
   correctly.  `os.chdir()` is done in `main()` for safety.
 * Requires: `astropy`, `numpy`, `tqdm`.
 """
@@ -143,11 +143,8 @@ def reduce_science_frame(
             fits.writeto(out_path, data.astype("uint16"), header=header, overwrite=True,
                          output_verify="ignore")
 
-    # return relative path for DB
-    if mode.upper() == "MEF":
-        return out_path
-    else:
-        return out_dir
+    # MEX file if MEX reduction, last reduced CCD if per-ccd file writing.
+    return out_path
 
 
 def process_object(db: DatabaseManager, rows: List[dict], cfg: dict) -> None:
@@ -232,13 +229,13 @@ def process_object(db: DatabaseManager, rows: List[dict], cfg: dict) -> None:
             out_dir=out_dir,
             mode=cfg.get("reduced_format", "MEF"),
         )
-        # db.register_reduced_science(
-        #     raw_dp_id=row["dp_id"],
-        #     combined_bias_id=bias_id,
-        #     combined_flat_id=flat_id,
-        #     output_path=out_path,
-        #     processing_version=cfg.get("version", "v0.1.0"),
-        # )
+        db.register_reduced_science(
+            raw_dp_id=row["dp_id"],
+            combined_bias_id=bias_id,
+            combined_flat_id=flat_id,
+            output_path=out_path,
+            processing_version=cfg.get("version", "v0.1.0"),
+        )
 
 
 

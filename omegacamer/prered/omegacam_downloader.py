@@ -9,7 +9,8 @@ import os
 from database_manager import DatabaseManager
 
 # load config
-with open('config.yaml', 'r') as file:
+config_path = os.environ['OMEGACAMER_CONFIG']
+with open(config_path, 'r') as file:
     config = yaml.safe_load(file)
 
 working_directory = config['working_directory']
@@ -170,11 +171,13 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
 
 if __name__ == "__main__":
     os.chdir(working_directory)
-    db_manager_instance = DatabaseManager(config_path='config.yaml')
+    import os
+    config_path = os.environ['OMEGACAMER_CONFIG']
+    db_manager_instance = DatabaseManager(config_path=config_path)
 
     try:
-        start_date = '2024 10 24'
-        end_date = '2024 10 25'
+        start_date = '2025 07 27'
+        end_date = '2025 07 28'
 
         out_file = get_omegacam_observation_records(start_date, end_date, prog_id)
 

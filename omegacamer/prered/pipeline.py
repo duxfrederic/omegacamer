@@ -133,8 +133,7 @@ def reduce_science_frame(
         data, hdr = flip_lr(data, hdr)
         # compatibility with theli output
         hdr['GAIN'] = hdr['HIERARCH ESO DET OUT1 GAIN']
-        # sanitize at least spaces.
-        hdr['OBJECT'] = sanitize_object_name(hdr['OBJECT'])
+
 
         # write out
         if mode.upper() == "MEF":

@@ -37,5 +37,8 @@ test = [
 [tool.setuptools]
 packages.find = {where = ["."], include = ["omegacamer*"]}
 package-dir = {"" = "."}
-package-data = {"omegacamer" = ["config.yaml", "prered/ccd_overscan.yaml]}
+package-data = {"omegacamer" = ["config.yaml", "prered/ccd_overscan.yaml"], "omegacamer.mosaic.static_configs": ["*"]}
 
+
+[tool.setuptools.package-data]
+"omegacamer.mosaic.static_configs" = ["*"]

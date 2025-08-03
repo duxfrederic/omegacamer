@@ -1,26 +1,30 @@
-# omegacamer
-download and reduce omegacam data
+# `omegacamer`
+
+Download (from the ESO archive) and process VST/OmegaCAM images.
+
+Workflow:
+``` 
+export OMEGACAMER_CONFIG="/path/to/config.yaml"  # see template at /omegacamer/config.yaml
+# download
+python -m omegacamer.scripts.download --start 2025-08-02 --end 2025-08-03
+
+# pre red of not-reduced files:
+python -m omegacamer.scripts.prered
+
+# mosaic: inventory of reduced files (kept separate from the prered for now)
+python omegacamer/mosaic/inventory.py
+# mosaic: produce them (requires swarp and scamp installed)
+python omegacamer/mosaic/make_mosaic.py
+```
 
 
-for now a collection of scripts, let's see:
+Warning:
+to use this, you need to patch the download function of astroquery, see
+https://github.com/astropy/astroquery/issues/3380
 
-### reduction_status.py
 
-This script queries the ESO archive for OMEGACAM observations, compares them with the reduced data on the server, and generates an HTML report indicating the reduction status of each observation.
+## Requirements
 
-- ** ESO Archive Query**: Retrieves recent OMEGACAM observation records.
-- **Reduction Status Comparison**: Checks which observations have been reduced or are pending based on the presence of corresponding FITS files.
-- **HTML report**: Creates an HTML report summarizing the status.
-- **Configuration via YAML**: configure paths, credentials, and lenses via `config.yaml`.
-- **Scheduled execution**: to be set up to run automatically using `crontab`.
-
-## Prerequisites
-
-- Python 3.6 or higher
-- Required Python packages:
-  - `pandas`
-  - `requests`
-  - `PyYAML`
-  - `astroquery`
-  - `jinja2`
+- Python 3.10 or higher
+- Python packages: see `pyproject.toml`
 

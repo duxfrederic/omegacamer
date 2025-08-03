@@ -6,7 +6,7 @@ from astropy.io import fits
 from astroquery.eso import EsoClass
 import os
 
-from database_manager import DatabaseManager
+from omegacamer.prered.database_manager import DatabaseManager
 
 # load config
 config_path = os.environ['OMEGACAMER_CONFIG']
@@ -90,16 +90,22 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
     """
     Processes the observation records and updates the database.
     """
-    obs_records = pd.read_csv(observation_records_csv_path, comment='#')
-    # Initialize ESO Class with credentials
+    try:
+        obs_records = pd.read_csv(observation_records_csv_path, comment='#')
+    except pd.errors.EmptyDataError:
+        print(f"No science observations taken in this interval, see {observation_records_csv_path}")
+        return
     esoclass = EsoClass()
     esoclass.login(username=credentials['user'], store_password=True)
 
     to_download = []
     for _, record in obs_records.iterrows():
         dp_id = record['Dataset ID']
-        if db_manager.raw_science_exists(dp_id):
-            print(f"Science file with ID {dp_id} already downloaded. Skipping.")
+        if db_manager.reduced_science_exists(dp_id):
+            print(f"Science file with ID {dp_id} already processed. Skipping.")
+            # if only raw file in database, maybe it wasn't processed due to missing calibrations
+            # hence, keep processing.
+            # if reduced file exists, skip appending to list of files to download / download calibrations for.
             continue
         to_download.append(dp_id)
 
@@ -161,7 +167,7 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
             continue
         file_path = esoclass.retrieve_data(raw_science_dp_id, destination=science_dest_path, with_calib=None,
                                            unzip=False, continuation=False)
-        # file_path insists on being absolute, we want it relative.
+        # file_path insists on being absolute, we want it relative to our working directory.
         file_path = Path(file_path).relative_to(working_directory)
         header = fits.getheader(file_path)  # first card header has the information we need on omegacam
         header_info = get_information_from_header(header)
@@ -171,8 +177,6 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
 
 if __name__ == "__main__":
     os.chdir(working_directory)
-    import os
-    config_path = os.environ['OMEGACAMER_CONFIG']
     db_manager_instance = DatabaseManager(config_path=config_path)
 
     try:

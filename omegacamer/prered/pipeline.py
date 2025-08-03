@@ -48,7 +48,7 @@ from omegacamer.prered.combine_calibrations import (
     build_combined_flat,
 )
 from omegacamer.mosaic.utils import determine_night, load_config
-from omegacamer.prered.utils import crop_omegacam_overscan
+from omegacamer.prered.utils import (crop_omegacam_overscan, flip_lr, sanitize_object_name)
 
 
 def night_id(mjd: float) -> str:
@@ -96,7 +96,8 @@ def reduce_science_frame(
     with fits.open(raw_path, memmap=True) as hdul:
         n_ccd = len(hdul) - 1
         phdr = hdul[0].header.copy()
-
+    # sanitize at least spaces.
+    phdr['OBJECT'] = sanitize_object_name(phdr['OBJECT'])
     # bias and flat paths
     bias_path = db.conn.execute(
         "SELECT file_path FROM combined_biases WHERE id=?;",
@@ -115,6 +116,7 @@ def reduce_science_frame(
         out_name = raw_path.with_suffix("").name + "_red.fits"
         out_path = out_dir / out_name
         hdul_out = fits.HDUList([fits.PrimaryHDU(header=phdr)])
+
         for _ in range(n_ccd):
             hdul_out.append(fits.ImageHDU(data=None, header=None))
         hdul_out.writeto(out_path, overwrite=True, output_verify="ignore")
@@ -127,6 +129,12 @@ def reduce_science_frame(
             data -= h_bias[ccd].data.astype("float32")
         with fits.open(flat_path, memmap=True) as h_flat:
             data /= h_flat[ccd].data.astype("float32")
+        # flip: we want east left.
+        data, hdr = flip_lr(data, hdr)
+        # compatibility with theli output
+        hdr['GAIN'] = hdr['HIERARCH ESO DET OUT1 GAIN']
+        # sanitize at least spaces.
+        hdr['OBJECT'] = sanitize_object_name(hdr['OBJECT'])
 
         # write out
         if mode.upper() == "MEF":
@@ -137,9 +145,6 @@ def reduce_science_frame(
             out_path = out_dir / f"{raw_path.name.split('.fits')[0]}_{ccd}OFCS.fits" # 'OFCS' to match output of Martin's pipeline
             header = phdr.copy()
             header.extend(hdr, update=True)
-            # compatibility with Martin's pipeline
-            header['GAIN'] = header['HIERARCH ESO DET OUT1 GAIN']
-            header['OBJECT'] = header['OBJECT'].replace(' ', '_')
             fits.writeto(out_path, data.astype("uint16"), header=header, overwrite=True,
                          output_verify="ignore")
 

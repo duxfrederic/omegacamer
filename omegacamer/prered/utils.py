@@ -63,6 +63,58 @@ def find_overscan_edges_from_flat_file(filename):
     return crop_dict
 
 
+def sanitize_object_name(object_name: str):
+    return object_name.replace(' ', '_')
+
+
+def flip_lr(data, header):
+    """
+    Flip a 2D FITS image array left–right and update its header WCS,
+    assuming diagonal WCS.
+    Works for omegacam (its CCDs come east right, we want east left)
+
+    Parameters
+    ----------
+    data : ndarray
+        The image array to flip.  Must be at least 2D; the flip is along axis=1.
+    header : dict-like
+        FITS header containing at minimum:
+          - 'NAXIS1'
+          - 'CRPIX1'
+          - 'CD1_1'  or  'CDELT1'
+
+    Returns
+    -------
+    flipped : ndarray
+        The input array mirror‐flipped along the X‐axis.
+    new_header : same type as header
+        A shallow copy of `header` with:
+          - CD1_1 (or CDELT1) negated
+          - CRPIX1 ← (NAXIS1 + 1) − old CRPIX1
+    """
+    flipped = np.flip(data, axis=1)
+
+    new_header = header.copy()
+
+    if 'CD1_1' in new_header:
+        new_header['CD1_1'] = -new_header['CD1_1']
+    elif 'CDELT1' in new_header:
+        new_header['CDELT1'] = -new_header['CDELT1']
+    else:
+        raise KeyError("Header must contain 'CD1_1' or 'CDELT1'")
+
+    naxis1 = new_header.get('NAXIS1')
+    if naxis1 is None:
+        raise KeyError("Header must contain 'NAXIS1'")
+    old_crpix1 = new_header.get('CRPIX1')
+    if old_crpix1 is None:
+        raise KeyError("Header must contain 'CRPIX1'")
+    new_header['CRPIX1'] = (naxis1 + 1) - old_crpix1
+
+    return flipped, new_header
+
+
+
 if __name__ == "__main__":
     from sys import argv
     find_overscan_edges_from_flat_file(argv[1])

@@ -5,11 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "omegacamer"
 version = "0.0.1"
-authors = [{ name = "Frédéric Dux", email = "duxfrederic@gmail.com" }]
+authors = [
+    { name = "Frédéric Dux", email = "duxfrederic@gmail.com" }
+]
 description = "Astropy / astroquery / numpy based package to download and reduce VST/OmegaCAM astronomical images."
 readme = "README.md"
 keywords = ["astronomy", "pipeline"]
-classifiers = [] 
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+requires-python = ">=3.10"
 dependencies = [
     "pyyaml",
     "matplotlib",
@@ -23,22 +28,23 @@ dependencies = [
     "tqdm",
 ]
 
-[project.urls]
-repository = "https://github.com/duxfrederic/omegacamer"
-
 [project.optional-dependencies]
-test = [
-    "pytest"
-]
+test = ["pytest"]
+
+[project.urls]
+Repository = "https://github.com/duxfrederic/omegacamer"
 
 [project.scripts]
-#
+omegacamer-download = "omegacamer.scripts.download:cli_main"
+omegacamer-prered = "omegacamer.scripts.prered:cli_main"
 
 [tool.setuptools]
-packages.find = {where = ["."], include = ["omegacamer*"]}
-package-dir = {"" = "."}
-package-data = {"omegacamer" = ["config.yaml", "prered/ccd_overscan.yaml"], "omegacamer.mosaic.static_configs": ["*"]}
+package-dir = { "" = "." }
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["omegacamer*"]
 
 [tool.setuptools.package-data]
+omegacamer = ["config.yaml", "prered/ccd_overscan.yaml"]
 "omegacamer.mosaic.static_configs" = ["*"]

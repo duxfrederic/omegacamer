@@ -4,6 +4,9 @@ from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List
 from astropy.time import Time
+from astropy.io.fits.verify import VerifyWarning
+import warnings
+warnings.simplefilter("ignore", VerifyWarning)
 
 from omegacamer.mosaic.utils import load_config
 from omegacamer.prered.database_manager import DatabaseManager
@@ -50,10 +53,14 @@ def main(start_date: str = None, end_date: str = None) -> None:
         process_object(db, per_object[obj], cfg)
 
 
-if __name__ == "__main__":
+def cli_main():
     parser = argparse.ArgumentParser(description="Reduce OmegaCAM science frames.")
     parser.add_argument("--start", help="Start date in YYYY-MM-DD format (optional)")
     parser.add_argument("--end", help="End date in YYYY-MM-DD format (optional)")
 
     args = parser.parse_args()
     main(start_date=args.start, end_date=args.end)
+
+
+if __name__ == "__main__":
+    cli_main()

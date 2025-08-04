@@ -19,10 +19,12 @@ credentials = config['credentials']
 prog_id = credentials['program_id']
 
 
-def main(start_date, end_date):
+def main(start_date, end_date, use_eso_cal_selector):
     try:
-        out_file = get_omegacam_observation_records(start_date, end_date, prog_id)
-        download_omegacam_observations(out_file, db_manager_instance)
+        science_out_file, calib_out_file = get_omegacam_observation_records(start_date, end_date, prog_id)
+        if use_eso_cal_selector:
+            calib_out_file = None
+        download_omegacam_observations(science_out_file, db_manager_instance, calib_out_file)
     except Exception as e:
         print('Error:', e, file=sys.stderr)
         raise
@@ -30,12 +32,16 @@ def main(start_date, end_date):
         db_manager_instance.close()
 
 
-if __name__ == '__main__':
+def cli_main():
     parser = argparse.ArgumentParser(description='Download and register OmegaCAM observations.')
     parser.add_argument('--start', required=True, help='Start date in format YYYY-MM-DD')
     parser.add_argument('--end', required=True, help='End date in format YYYY-MM-DD')
+    parser.add_argument('--no_eso_cal_selector', action='store_false',
+                        help='Force not using the ESO cal selector to find calibrations.')
 
     args = parser.parse_args()
+    main(args.start.replace('-', ' '), args.end.replace('-', ' '), args.no_eso_cal_selector)
 
-    main(args.start.replace('-', ' '), args.end.replace('-', ' '))
 
+if __name__ == '__main__':
+    cli_main()

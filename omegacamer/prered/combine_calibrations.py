@@ -200,7 +200,7 @@ if __name__ == "__main__":
         bias_ids=night_biases,
         binning="1x1",
         readout_mode="normal",
-        output_rel=f"calib/master_bias_60608_normal_1x1.fits",
+        output_rel="calib/master_bias_60608_normal_1x1.fits",
     )
 
     night_flats = [row["calib_id"] for row in db.find_flats(
@@ -214,5 +214,5 @@ if __name__ == "__main__":
         binning="1x1",
         readout_mode="normal",
         combined_bias_id=bias_id,
-        output_rel=f"master_flat_r_60608_normal_1x1.fits",
+        output_rel="master_flat_r_60608_normal_1x1.fits",
     )

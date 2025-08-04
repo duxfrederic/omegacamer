@@ -31,19 +31,33 @@ omegacam_url_template = ("https://archive.eso.org/wdb/wdb/eso/eso_archive_main/q
                          "&tab_tpl_start=on&tpl_start=&tab_tpl_id=on&tpl_id="
                          "&tab_exptime=on&exptime=&tab_filter_path=on&filter_path="
                          "&tab_wavelength_input=on&wavelength_input=&tab_fwhm_input=on"
-                         "&fwhm_input=&gris_path=&grat_path=&slit_path="
+#                         "&fwhm_input=&gris_path=&grat_path=&slit_path="
                          "&tab_instrument=on&add=((ins_id%20like%20%27OMEGACAM%25%27))"
                          "&tab_tel_airm_start=on&tab_stat_instrument=on&tab_ambient=on"
                          "&tab_stat_exptime=on&tab_HDR=on&tab_mjd_obs=on"
                          "&aladin_colour=aladin_instrument&tab_stat_plot=on&order=&")
 
+omegacam_calib_url_template =("https://archive.eso.org/wdb/wdb/eso/eso_archive_main/query?wdbo=csv%2fdownload"
+                              "&max_rows_returned={max_returned}&instrument=&target=&resolver=simbad"
+                              "&ra=&dec=&box=00%2010%2000&degrees_or_hours=hours&format=SexaHour"
+                              "&wdb_input_file=&night=&stime={start_date_str}&starttime=12&etime={end_date_str}"
+                              "&endtime=12"
+                              "&tab_prog_id=on&prog_id=&gto=&pi_coi=&obs_mode=&title=&image[]=OMEGACAM&tab_dp_cat=on"
+                              "&dp_cat=CALIB&tab_dp_type=on&dp_type=&dp_type_user=&tab_dp_tech=on&dp_tech=IMAGE"
+                              "&dp_tech_user=&tab_dp_id=on&dp_id=&origfile=&tab_rel_date=on"
+                              "&rel_date=&obs_name=&ob_id=&tab_tpl_start=on&tpl_start=&tab_tpl_id=on&tpl_id="
+                              "&tab_exptime=on&exptime=&tab_filter_path=on&filter_path=&tab_wavelength_input=on"
+                              "&wavelength_input=&tab_fwhm_input=on&fwhm_input=&gris_path=&grat_path="
+                              "&slit_path=&tab_instrument=on&add=((ins_id%20like%20%27OMEGACAM%25%27))"
+                              "&tab_tel_airm_start=on&tab_stat_instrument=on&tab_ambient=on&tab_stat_exptime=on"
+                              "&tab_HDR=on&tab_mjd_obs=on&aladin_colour=aladin_instrument&tab_stat_plot=on&order=&")
 
-def format_url(template, start_date_str, end_date_str, program_id, max_returned=30000):
+def format_url(template, start_date_str, end_date_str, max_returned=30000, **kwargs):
     """
     Formats the template URL with start and end dates, program ID, and max returned rows.
     """
     url = template.format(start_date_str=start_date_str, end_date_str=end_date_str,
-                          max_returned=max_returned, program_id=program_id)
+                          max_returned=max_returned, **kwargs)
     url = url.replace(' ', '%20')
     return url
 
@@ -62,14 +76,22 @@ def get_omegacam_observation_records(start_date_str, end_date_str, program_id):
     Downloads the observation records CSV if it doesn't already exist.
     """
     download_dir = Path('obs_records')
-    out_file = download_dir / f"records_{start_date_str.replace(' ', '-')}_{end_date_str.replace(' ', '-')}.csv"
-    if out_file.exists():
-        return out_file
-
     download_dir.mkdir(parents=True, exist_ok=True)
-    url = format_url(omegacam_url_template, start_date_str, end_date_str, program_id)
-    download_file(url, out_file)
-    return out_file
+    science_out_file = download_dir / f"records_{start_date_str.replace(' ', '-')}_{end_date_str.replace(' ', '-')}.csv"
+    calib_out_file = download_dir / f"calibrations_{start_date_str.replace(' ', '-')}_{end_date_str.replace(' ', '-')}.csv"
+
+    # science records:
+    if not science_out_file.exists():
+        url = format_url(omegacam_url_template, start_date_str, end_date_str, program_id=program_id)
+        download_file(url, science_out_file)
+
+    # calibrations:
+    if not calib_out_file.exists():
+        download_dir.mkdir(parents=True, exist_ok=True)
+        url = format_url(omegacam_calib_url_template, start_date_str, end_date_str)
+        download_file(url, calib_out_file)
+
+    return science_out_file, calib_out_file
 
 
 def get_information_from_header(header):
@@ -86,15 +108,22 @@ def get_information_from_header(header):
             'exptime': exptime}
 
 
-def download_omegacam_observations(observation_records_csv_path, db_manager):
+def download_omegacam_observations(observation_records_csv_path, db_manager, calibrations=None):
     """
     Processes the observation records and updates the database.
+    observation_records_csv_path: where the science observations are
+    db_manager: instance of database_manager
+    calibrations: default None, then uses ESO cal selector on records from csv above.
+                  else, str: path to file containing calibrations.
+
+    both science records and calibration records are produced by get_omegacam_observation_records above.
     """
     try:
         obs_records = pd.read_csv(observation_records_csv_path, comment='#')
     except pd.errors.EmptyDataError:
         print(f"No science observations taken in this interval, see {observation_records_csv_path}")
         return
+
     esoclass = EsoClass()
     esoclass.login(username=credentials['user'], store_password=True)
 
@@ -114,8 +143,19 @@ def download_omegacam_observations(observation_records_csv_path, db_manager):
         # we simply do nothing.
         return
 
-    # get associated calibrations:
-    calib_dp_ids = esoclass.get_associated_files(to_download)
+    if calibrations is None:
+        # get associated calibrations:
+        calib_dp_ids = esoclass.get_associated_files(to_download)
+    else:
+        # filter the calibrations we need.
+        try:
+            calibration_records = pd.read_csv(calibrations, comment='#')
+            mask = calibration_records['OBJECT'].str.lower().str.contains('flat,sky|bias')
+            calib_dp_ids = calibration_records.loc[mask, 'Dataset ID'].tolist()
+        except pd.errors.EmptyDataError:
+            print(f"No calibrations taken in this interval, see {calibrations}")
+            return
+        pass
 
     # download and register each relevant calibration file
     calib_dest_path = Path('raw/calib')
@@ -183,8 +223,8 @@ if __name__ == "__main__":
         start_date = '2025 07 27'
         end_date = '2025 07 28'
 
-        out_file = get_omegacam_observation_records(start_date, end_date, prog_id)
+        records, calibrations = get_omegacam_observation_records(start_date, end_date, prog_id)
 
-        download_omegacam_observations(out_file, db_manager_instance)
+        download_omegacam_observations(records, db_manager_instance)
     finally:
         db_manager_instance.close()

@@ -4,7 +4,6 @@ import logging
 from pathlib import Path
 import numpy as np
 from astropy.io import fits
-from astropy.table import Table
 import re
 import sep
 
@@ -141,7 +140,7 @@ def make_mosaic(target_name, night_date):
         else:
             logger.error(f"Swarp failed to produce the mosaic file! Directory: {mosaic_dir_path}")
     else:
-        logger.warning(f"Mosaic file already exists, inconsistency with database?")
+        logger.warning(f"Mosaic file {output_mosaic_file} already exists, inconsistency with database?")
 
     for path in temporary_files:
         path.unlink()

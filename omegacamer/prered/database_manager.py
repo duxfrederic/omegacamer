@@ -492,5 +492,36 @@ class DatabaseManager:
         ).fetchone()
         return row is not None
 
+    def find_combined_bias_in_window(self, *, binning: str, readout_mode: str,
+                                     mjd_center: float, mjd_window) -> list:
+        """Return combined bias frames matching *binning* & *readout_mode* whose mjd_obs is within
+        ±*mjd_window* days of *mjd_center*.
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT * FROM combined_biases
+             WHERE binning = :bin AND readout_mode = :ro
+               AND ABS(average_mjd_obs - :mjd) <= :w
+             ORDER BY ABS(average_mjd_obs - :mjd);
+            """,
+            {"bin": binning, "ro": readout_mode, "mjd": mjd_center, "w": mjd_window},
+        )
+        return cur.fetchall()
+
+    def find_combined_flat_in_window(self, *, filter_: str, binning: str, readout_mode: str,
+                                     mjd_center: float, mjd_window) -> list:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id FROM combined_flats
+             WHERE filter = :flt AND binning = :bin AND readout_mode = :ro
+               AND ABS(average_mjd_obs - :mjd) <= :w
+             ORDER BY ABS(average_mjd_obs - :mjd);
+            """,
+            {"flt": filter_, "bin": binning, "ro": readout_mode, "mjd": mjd_center, "w": mjd_window},
+        )
+        return cur.fetchall()
+
     def close(self) -> None:
         self.conn.close()

@@ -33,8 +33,6 @@ Notes
 * Requires: `astropy`, `numpy`, `tqdm`.
 """
 
-from collections import defaultdict
-import os
 from pathlib import Path
 from astropy.time import Time
 from typing import Dict, List, Tuple
@@ -169,57 +167,93 @@ def process_object(db: DatabaseManager, rows: List[dict], cfg: dict) -> None:
         # build / fetch calibs
         if key not in calibs:
             night_str, flt, binning, ro = key
-            bias_ids = [b["calib_id"] for b in db.find_biases(
-                binning=binning,
-                readout_mode=ro,
-                mjd_window=0.5,
-                mjd_center=row["mjd_obs"],  # within same night
-            )]
-            if not bias_ids:
-                raise RuntimeError(
-                    f"No biases for {binning}/{ro} on night {night_str}")
-            bias_rel = Path("calib/biases") / f"master_bias_{night_str}_{ro}_{binning}.fits"
-            bias_rel.parent.mkdir(exist_ok=True, parents=True)
-            bias_id = build_combined_bias(
-                db,
-                bias_ids=bias_ids,
-                binning=binning,
-                readout_mode=ro,
-                output_rel=str(bias_rel),
-            )
-
-            flat_ids = [f["calib_id"] for f in db.find_flats(
-                filter_=flt,
-                type_='SKY',
-                binning=binning,
-                readout_mode=ro,
-                mjd_window=0.5,
-                mjd_center=row["mjd_obs"],
-            )]
-            if len(flat_ids) < 4:
-                # fall back to dome flats
-                flat_ids.extend([f["calib_id"] for f in db.find_flats(
-                    filter_=flt,
-                    type_='DOME',
+            # initialize search for biases.
+            bias_id, bias_ids = None, None
+            mjd_window = 0.5
+            while bias_id is None and mjd_window < 5:
+                # try to find a combined bias
+                combined_biases = db.find_combined_bias_in_window(
                     binning=binning,
                     readout_mode=ro,
-                    mjd_window=0.5,
                     mjd_center=row["mjd_obs"],
-                )])
-                if len(flat_ids) < 4:
-                    raise RuntimeError(
-                        f"No flats for {flt}/{binning}/{ro} on night {night_str}")
-            flat_rel = Path("calib/flats") / f"master_flat_{flt}_{night_str}_{ro}_{binning}.fits"
-            flat_rel.parent.mkdir(exist_ok=True, parents=True)
-            flat_id = build_combined_flat(
-                db,
-                flat_ids=flat_ids,
-                filter_=flt,
-                binning=binning,
-                readout_mode=ro,
-                combined_bias_id=bias_id,
-                output_rel=str(flat_rel),
-            )
+                    mjd_window=mjd_window,
+                )
+                if combined_biases:
+                    bias_id = combined_biases[0]['id']
+                    break  # we good, stop the loop.
+
+                # if no combined bias, try to build one
+                bias_ids = [b["calib_id"] for b in db.find_biases(
+                    binning=binning,
+                    readout_mode=ro,
+                    mjd_window=mjd_window,
+                    mjd_center=row["mjd_obs"],
+                )]
+                if not bias_ids or len(bias_ids) < 4:
+                    # if not enough biases, look further
+                    mjd_window += 0.5
+                    continue
+                # if enough biases, build a combined bias from them.
+                bias_rel = Path("calib/biases") / f"combined_bias_{night_str}_{ro}_{binning}.fits"
+                bias_rel.parent.mkdir(exist_ok=True, parents=True)
+                bias_id = build_combined_bias(
+                    db,
+                    bias_ids=bias_ids,
+                    binning=binning,
+                    readout_mode=ro,
+                    output_rel=str(bias_rel),
+                )
+            # at the end ...if no bias, raise.
+            if not bias_id:
+                raise RuntimeError(
+                    f"No biases for {binning}/{ro} on night {night_str} within {mjd_window} days")
+
+            # now do the exact same with flats.
+            flat_id, flat_ids = None, None
+            mjd_window = 0.5
+            while flat_id is None and mjd_window < 8:  # flats have a validity of 7 days according to ESO.
+                # try to find a combined flat
+                combined_flats = db.find_combined_flat_in_window(
+                    filter_=flt,
+                    binning=binning,
+                    readout_mode=ro,
+                    mjd_center=row["mjd_obs"],
+                    mjd_window=mjd_window,
+                )
+                if combined_flats:
+                    flat_id = combined_flats[0]['id']
+                    break  # we good, stop the loop.
+
+                # if no combined flat, try to build one
+                flat_ids = [f["calib_id"] for f in db.find_flats(
+                    filter_=flt,
+                    binning=binning,
+                    readout_mode=ro,
+                    type_='SKY',
+                    mjd_window=mjd_window,
+                    mjd_center=row["mjd_obs"],
+                )]
+                if not flat_ids or len(flat_ids) < 4:
+                    # if not enough flats, look further
+                    mjd_window += 0.5
+                    continue
+                # if enough flats, build a combined flat from them.
+                flat_rel = Path("calib/flats") / f"combined_flat_{flt}_{night_str}_{ro}_{binning}.fits"
+                flat_rel.parent.mkdir(exist_ok=True, parents=True)
+                flat_id = build_combined_flat(
+                    db,
+                    flat_ids=flat_ids,
+                    filter_=flt,
+                    binning=binning,
+                    readout_mode=ro,
+                    combined_bias_id=bias_id,
+                    output_rel=str(flat_rel),
+                )
+            # at the end ...if no flat, raise.
+            if not flat_id:
+                raise RuntimeError(
+                    f"No flats for {flt}/{binning}/{ro} on night {night_str} within {mjd_window} days")
+
             calibs[key] = (bias_id, flat_id)
         else:
             bias_id, flat_id = calibs[key]
